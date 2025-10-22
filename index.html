@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Универсальная картография</title>
     <style>
-        * {
+       * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
@@ -862,14 +862,37 @@
         .chance-low {
             color: #ff4444;
         }
+
+        /* Стили для статуса подключения */
+        .connection-status {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            z-index: 1000;
+        }
+        
+        .connection-status.connected {
+            background: rgba(0, 150, 0, 0.8);
+            color: white;
+        }
+        
+        .connection-status.disconnected {
+            background: rgba(200, 0, 0, 0.8);
+            color: white;
+        }
     </style>
 </head>
 <body>
+    <div class="connection-status" id="connection-status">Подключение...</div>
+    
     <div class="container">
         <header>
             <div class="header-content">
-                <div class="logo">УНИВЕРСАЛЬНАЯ КАРТОГРАФИЯ</div>
-                <div class="date">21 октября 2023 г.</div>
+                <div class="logo">УНИВЕРСАЛЬНАЯ КАРТОГРАФИЯ - МНОГОПОЛЬЗОВАТЕЛЬСКАЯ</div>
+                <div class="date" id="current-date">21 октября 2023 г.</div>
             </div>
         </header>
         
@@ -1026,7 +1049,7 @@
                         </div>
                     </div>
                     
-                    <!-- Остальные вкладки остаются без изменений -->
+                    <!-- Остальные вкладки -->
                     <div class="tab-content" id="planets-tab">
                         <div class="content-header">
                             <div class="content-title">УПРАВЛЕНИЕ ПЛАНЕТАМИ</div>
@@ -1244,12 +1267,14 @@
     
     <div class="notification" id="notification"></div>
 
+    <script src="/socket.io/socket.io.js"></script>
     <script>
         // Данные приложения
         const appState = {
             planets: [],
             ships: [],
             routes: [],
+            travels: [],
             selectedPlanet: null,
             selectedShip: null,
             mapScale: 1,
@@ -1282,8 +1307,21 @@
         // Урон при провале
         const DAMAGE_AMOUNT = 25;
 
+        // Socket.io клиент
+        let socket = null;
+
         // Инициализация приложения
         document.addEventListener('DOMContentLoaded', function() {
+            // Обновляем дату
+            document.getElementById('current-date').textContent = new Date().toLocaleDateString('ru-RU', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            
+            // Инициализируем Socket.io
+            initializeSocket();
+            
             // Добавляем обработчики событий для быстрых кнопок
             document.querySelectorAll('.quick-action-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
@@ -1378,6 +1416,8 @@
                             const ship = appState.ships.find(s => s.id === appState.selectedShip);
                             if (ship) {
                                 ship.image = e.target.result;
+                                // Отправляем обновление на сервер
+                                socket.emit('shipUpdated', ship);
                             }
                         }
                     };
@@ -1405,6 +1445,9 @@
                     ship.owner = document.getElementById('edit-ship-owner').value;
                     ship.description = document.getElementById('edit-ship-description').value;
                     
+                    // Отправляем обновление на сервер
+                    socket.emit('shipUpdated', ship);
+                    
                     updateShipDetails();
                     document.getElementById('ship-details-modal').style.display = 'none';
                     showNotification('Описание корабля обновлено');
@@ -1414,15 +1457,282 @@
             // Инициализация управления мышью
             initMouseControls();
             
-            // Добавляем начальные данные
-            initializeData();
-            renderMap();
+            // Обновляем индикатор масштаба
             updateZoomIndicator();
             
             // Активируем первую вкладку
             switchTab('system');
         });
-        
+
+        // Инициализация Socket.io
+        function initializeSocket() {
+            socket = io();
+            
+            // Обработчики событий от сервера
+            socket.on('connect', () => {
+                console.log('Connected to server');
+                document.getElementById('connection-status').textContent = 'Подключено';
+                document.getElementById('connection-status').className = 'connection-status connected';
+                showNotification('Подключено к серверу', 'success');
+            });
+            
+            socket.on('disconnect', () => {
+                console.log('Disconnected from server');
+                document.getElementById('connection-status').textContent = 'Отключено';
+                document.getElementById('connection-status').className = 'connection-status disconnected';
+                showNotification('Отключено от сервера', 'warning');
+            });
+            
+            // Получение данных от сервера
+            socket.on('planets', (planets) => {
+                appState.planets = planets;
+                renderMap();
+            });
+            
+            socket.on('ships', (ships) => {
+                appState.ships = ships;
+                renderMap();
+            });
+            
+            socket.on('routes', (routes) => {
+                appState.routes = routes;
+                renderMap();
+            });
+            
+            socket.on('travels', (travels) => {
+                appState.travels = travels;
+                // Восстанавливаем активные путешествия
+                travels.forEach(travel => {
+                    if (!travel.completed) {
+                        restoreTravel(travel);
+                    }
+                });
+            });
+            
+            socket.on('events', (events) => {
+                const eventLog = document.getElementById('event-log');
+                eventLog.innerHTML = '';
+                events.forEach(event => {
+                    addEventToLog(event.message, event.type);
+                });
+            });
+            
+            // Обработчики обновлений в реальном времени
+            socket.on('planetAdded', (planet) => {
+                if (!appState.planets.find(p => p.id === planet.id)) {
+                    appState.planets.push(planet);
+                    renderMap();
+                    showNotification(`Добавлена планета: ${planet.name}`, 'info');
+                }
+            });
+            
+            socket.on('planetUpdated', (planet) => {
+                const index = appState.planets.findIndex(p => p.id === planet.id);
+                if (index !== -1) {
+                    appState.planets[index] = planet;
+                    renderMap();
+                    updateSidebarInfo();
+                }
+            });
+            
+            socket.on('planetDeleted', (planetId) => {
+                appState.planets = appState.planets.filter(p => p.id !== planetId);
+                if (appState.selectedPlanet === planetId) {
+                    appState.selectedPlanet = null;
+                }
+                renderMap();
+                updateSidebarInfo();
+            });
+            
+            socket.on('shipAdded', (ship) => {
+                if (!appState.ships.find(s => s.id === ship.id)) {
+                    appState.ships.push(ship);
+                    renderMap();
+                    showNotification(`Добавлен корабль: ${ship.name}`, 'info');
+                }
+            });
+            
+            socket.on('shipUpdated', (ship) => {
+                const index = appState.ships.findIndex(s => s.id === ship.id);
+                if (index !== -1) {
+                    appState.ships[index] = ship;
+                    renderMap();
+                    updateSidebarInfo();
+                }
+            });
+            
+            socket.on('shipDeleted', (shipId) => {
+                appState.ships = appState.ships.filter(s => s.id !== shipId);
+                if (appState.selectedShip === shipId) {
+                    appState.selectedShip = null;
+                }
+                renderMap();
+                updateSidebarInfo();
+            });
+            
+            socket.on('routeAdded', (route) => {
+                if (!appState.routes.find(r => r.id === route.id)) {
+                    appState.routes.push(route);
+                    renderMap();
+                    showNotification('Добавлен новый маршрут', 'info');
+                }
+            });
+            
+            socket.on('routeDeleted', (routeId) => {
+                appState.routes = appState.routes.filter(r => r.id !== routeId);
+                renderMap();
+            });
+            
+            socket.on('travelStarted', (travel) => {
+                if (!appState.travels.find(t => t.id === travel.id)) {
+                    appState.travels.push(travel);
+                }
+            });
+            
+            socket.on('travelUpdated', (travel) => {
+                const index = appState.travels.findIndex(t => t.id === travel.id);
+                if (index !== -1) {
+                    appState.travels[index] = travel;
+                }
+            });
+            
+            socket.on('travelCompleted', (travel) => {
+                appState.travels = appState.travels.filter(t => t.id !== travel.id);
+                appState.activeTravels.delete(travel.ship_id);
+                
+                // Обновляем корабль
+                const ship = appState.ships.find(s => s.id === travel.ship_id);
+                if (ship) {
+                    if (!travel.success) {
+                        ship.currentHealth = Math.max(0, ship.currentHealth - travel.damage_taken);
+                        if (ship.currentHealth <= 0) {
+                            ship.destroyed = true;
+                        }
+                        socket.emit('shipUpdated', ship);
+                    }
+                }
+                
+                renderMap();
+                updateSidebarInfo();
+            });
+            
+            socket.on('eventAdded', (event) => {
+                addEventToLog(event.message, event.type);
+            });
+        }
+
+        // Восстановление путешествия после перезагрузки
+        function restoreTravel(travel) {
+            const ship = appState.ships.find(s => s.id === travel.ship_id);
+            const fromPlanet = appState.planets.find(p => p.id === travel.from_planet);
+            const toPlanet = appState.planets.find(p => p.id === travel.to_planet);
+            
+            if (!ship || !fromPlanet || !toPlanet) return;
+            
+            const startTime = new Date(travel.start_time).getTime();
+            const now = Date.now();
+            const elapsed = now - startTime;
+            const progress = Math.min(1, elapsed / travel.duration);
+            
+            if (progress >= 1) {
+                // Путешествие завершено, но не обработано
+                completeTravel(travel, ship, toPlanet);
+            } else {
+                // Продолжаем анимацию
+                const remainingTime = travel.duration - elapsed;
+                continueTravelAnimation(travel, ship, fromPlanet, toPlanet, remainingTime, progress);
+            }
+        }
+
+        function continueTravelAnimation(travel, ship, fromPlanet, toPlanet, remainingTime, progress) {
+            const shipElement = document.querySelector(`.ship[data-ship-id="${ship.id}"]`);
+            if (!shipElement) return;
+            
+            shipElement.classList.add('moving');
+            
+            const dx = toPlanet.x - fromPlanet.x;
+            const dy = toPlanet.y - fromPlanet.y;
+            const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+            shipElement.style.transform = `rotate(${angle}deg)`;
+            
+            const travelInfo = {
+                travelId: travel.id,
+                shipId: ship.id,
+                startTime: Date.now() - (travel.duration * progress),
+                duration: travel.duration,
+                progress: progress,
+                success: false,
+                damageTaken: 0
+            };
+            
+            appState.activeTravels.set(ship.id, travelInfo);
+            
+            shipElement.style.transition = `all ${remainingTime}ms linear`;
+            shipElement.style.left = `${toPlanet.x}px`;
+            shipElement.style.top = `${toPlanet.y}px`;
+            
+            const progressInterval = setInterval(() => {
+                const elapsed = Date.now() - travelInfo.startTime;
+                travelInfo.progress = Math.min(1, elapsed / travelInfo.duration);
+                
+                if (appState.selectedShip === ship.id) {
+                    document.getElementById('ship-progress-bar').style.width = `${travelInfo.progress * 100}%`;
+                }
+                
+                // Обновляем прогресс на сервере
+                socket.emit('travelUpdated', {
+                    id: travel.id,
+                    progress: travelInfo.progress
+                });
+                
+                if (travelInfo.progress >= 1) {
+                    clearInterval(progressInterval);
+                }
+            }, 1000);
+            
+            setTimeout(() => {
+                completeTravel(travel, ship, toPlanet);
+            }, remainingTime);
+        }
+
+        function completeTravel(travel, ship, toPlanet) {
+            const shipElement = document.querySelector(`.ship[data-ship-id="${ship.id}"]`);
+            if (shipElement) {
+                shipElement.classList.remove('moving');
+            }
+            
+            ship.x = toPlanet.x;
+            ship.y = toPlanet.y;
+            ship.location = toPlanet.id;
+            
+            // Проверяем успех миссии
+            const shipType = shipTypes[ship.type];
+            const successChance = BASE_SUCCESS_CHANCE + shipType.bonus;
+            const isSuccess = Math.random() * 100 < successChance;
+            
+            let damageTaken = 0;
+            if (!isSuccess) {
+                damageTaken = DAMAGE_AMOUNT;
+            }
+            
+            // Отправляем завершение путешествия на сервер
+            socket.emit('travelCompleted', {
+                id: travel.id,
+                success: isSuccess,
+                damageTaken: damageTaken,
+                shipName: ship.name,
+                destroyed: !isSuccess && (ship.currentHealth - damageTaken) <= 0
+            });
+            
+            appState.activeTravels.delete(ship.id);
+            if (appState.selectedShip === ship.id) {
+                document.getElementById('ship-progress').style.display = 'none';
+            }
+            
+            renderMap();
+            updateSidebarInfo();
+        }
+
         // Переключение вкладок
         function switchTab(tabName) {
             // Обновляем активную кнопку
@@ -1502,10 +1812,16 @@
                 
                 if (appState.isPlanetMoving) {
                     appState.isPlanetMoving = false;
+                    // Сохраняем изменения позиции планеты на сервере
+                    if (appState.movingPlanet) {
+                        const planet = appState.planets.find(p => p.id === appState.movingPlanet);
+                        if (planet) {
+                            socket.emit('planetUpdated', planet);
+                        }
+                    }
                     appState.movingPlanet = null;
                     mapContainer.style.cursor = 'grab';
                     showNotification('Планета перемещена', 'info');
-                    addEvent('Планета перемещена', 'info');
                 }
             });
             
@@ -1554,99 +1870,6 @@
         function updateZoomIndicator() {
             const indicator = document.getElementById('zoom-indicator');
             indicator.textContent = `Масштаб: ${Math.round(appState.mapScale * 100)}%`;
-        }
-        
-        // Инициализация начальных данных
-        function initializeData() {
-            // Добавляем начальные планеты
-            appState.planets.push({
-                id: 1,
-                name: 'Альдераан',
-                description: 'Покрытая горная, озёрная и холодная полотна в центральных мирах полотном, элементов своей культурой и часто называемых "планетой красоты".',
-                color: '#4a86e8',
-                size: 70,
-                x: 300,
-                y: 200
-            });
-            
-            appState.planets.push({
-                id: 2,
-                name: 'Корусант',
-                description: 'Городская планета, столица Галактической Республики.',
-                color: '#e69138',
-                size: 80,
-                x: 600,
-                y: 400
-            });
-            
-            appState.planets.push({
-                id: 3,
-                name: 'Татуин',
-                description: 'Пустынная планета во Внешнем Кольце.',
-                color: '#d5a6bd',
-                size: 60,
-                x: 800,
-                y: 150
-            });
-            
-            // Добавляем начальные корабли разных типов
-            appState.ships.push({
-                id: 1,
-                name: 'Фрегат "Буря"',
-                type: 'frigate',
-                location: 1,
-                x: 300,
-                y: 200,
-                destroyed: false,
-                owner: 'Галактическая Империя',
-                description: 'Надёжный фрегат для патрулирования границ и сопровождения конвоев.',
-                currentHealth: 200,
-                maxHealth: 200,
-                image: null
-            });
-            
-            appState.ships.push({
-                id: 2,
-                name: 'Крейсер "Непобедимый"',
-                type: 'cruiser',
-                location: 2,
-                x: 600,
-                y: 400,
-                destroyed: false,
-                owner: 'Торговая Федерация',
-                description: 'Мощный крейсер с усиленным вооружением и броней.',
-                currentHealth: 400,
-                maxHealth: 400,
-                image: null
-            });
-            
-            appState.ships.push({
-                id: 3,
-                name: 'Звёздный разрушитель "Император"',
-                type: 'destroyer',
-                location: 3,
-                x: 800,
-                y: 150,
-                destroyed: false,
-                owner: 'Имперский Флот',
-                description: 'Грозный звёздный разрушитель, способный уничтожать целые планеты.',
-                currentHealth: 800,
-                maxHealth: 800,
-                image: null
-            });
-            
-            // Добавляем начальные маршруты
-            appState.routes.push({
-                id: 1,
-                from: 1,
-                to: 2
-            });
-            
-            appState.routes.push({
-                id: 2,
-                from: 2,
-                to: 3
-            });
         }
         
         // Открытие модальных окон
@@ -1714,8 +1937,11 @@
                     planet.color = color;
                     planet.size = size;
                     
-                    showNotification(`Планета "${name}" обновлена`);
-                    addEvent(`Планета "${name}" обновлена`, 'info');
+                    // Отправляем на сервер
+                    socket.emit('planetUpdated', planet);
+                    
+                    document.getElementById('planet-modal').style.display = 'none';
+                    appState.editingPlanet = null;
                 }
             } else {
                 // Создание новой планеты
@@ -1723,7 +1949,6 @@
                 const y = Math.floor(Math.random() * 500) + 100;
                 
                 const newPlanet = {
-                    id: Date.now(),
                     name,
                     description,
                     color,
@@ -1732,17 +1957,14 @@
                     y
                 };
                 
-                appState.planets.push(newPlanet);
-                showNotification(`Планета "${name}" добавлена`);
-                addEvent(`Планета "${name}" добавлена`, 'info');
+                // Отправляем на сервер
+                socket.emit('planetAdded', newPlanet);
+                
+                document.getElementById('planet-modal').style.display = 'none';
+                
+                document.getElementById('planet-name').value = '';
+                document.getElementById('planet-desc').value = '';
             }
-            
-            renderMap();
-            document.getElementById('planet-modal').style.display = 'none';
-            appState.editingPlanet = null;
-            
-            document.getElementById('planet-name').value = '';
-            document.getElementById('planet-desc').value = '';
         }
         
         function saveShip() {
@@ -1767,7 +1989,6 @@
             const shipType = shipTypes[type];
             
             const newShip = {
-                id: Date.now(),
                 name,
                 type,
                 location,
@@ -1781,11 +2002,10 @@
                 image: null
             };
             
-            appState.ships.push(newShip);
-            renderMap();
+            // Отправляем на сервер
+            socket.emit('shipAdded', newShip);
+            
             document.getElementById('ship-modal').style.display = 'none';
-            showNotification(`Корабль "${name}" добавлен`);
-            addEvent(`Корабль "${name}" добавлен`, 'info');
             
             document.getElementById('ship-name').value = '';
             document.getElementById('ship-owner-input').value = '';
@@ -1811,16 +2031,14 @@
             }
             
             const newRoute = {
-                id: Date.now(),
                 from,
                 to
             };
             
-            appState.routes.push(newRoute);
-            renderMap();
+            // Отправляем на сервер
+            socket.emit('routeAdded', newRoute);
+            
             document.getElementById('route-modal').style.display = 'none';
-            showNotification('Маршрут добавлен');
-            addEvent('Маршрут добавлен', 'info');
         }
         
         // Удаление планеты
@@ -1830,24 +2048,12 @@
             const planet = appState.planets.find(p => p.id === appState.editingPlanet);
             if (!planet) return;
             
-            // Удаляем корабли на этой планете
-            appState.ships = appState.ships.filter(ship => ship.location !== planet.id);
+            // Отправляем на сервер
+            socket.emit('planetDeleted', planet.id);
             
-            // Удаляем маршруты, связанные с этой планетой
-            appState.routes = appState.routes.filter(route => 
-                route.from !== planet.id && route.to !== planet.id
-            );
-            
-            // Удаляем планету
-            appState.planets = appState.planets.filter(p => p.id !== planet.id);
-            
-            renderMap();
             document.getElementById('planet-modal').style.display = 'none';
             appState.editingPlanet = null;
             appState.selectedPlanet = null;
-            
-            showNotification(`Планета "${planet.name}" удалена`, 'warning');
-            addEvent(`Планета "${planet.name}" удалена`, 'warning');
         }
         
         function deleteSelectedPlanet() {
@@ -1860,22 +2066,8 @@
             if (!planet) return;
             
             if (confirm(`Вы уверены, что хотите удалить планету "${planet.name}"?`)) {
-                // Удаляем корабли на этой планете
-                appState.ships = appState.ships.filter(ship => ship.location !== planet.id);
-                
-                // Удаляем маршруты, связанные с этой планетой
-                appState.routes = appState.routes.filter(route => 
-                    route.from !== planet.id && route.to !== planet.id
-                );
-                
-                // Удаляем планету
-                appState.planets = appState.planets.filter(p => p.id !== planet.id);
-                
-                renderMap();
-                appState.selectedPlanet = null;
-                
-                showNotification(`Планета "${planet.name}" удалена`, 'warning');
-                addEvent(`Планета "${planet.name}" удалена`, 'warning');
+                // Отправляем на сервер
+                socket.emit('planetDeleted', planet.id);
             }
         }
         
@@ -1889,12 +2081,8 @@
             if (!ship) return;
             
             if (confirm(`Вы уверены, что хотите удалить корабль "${ship.name}"?`)) {
-                appState.ships = appState.ships.filter(s => s.id !== ship.id);
-                renderMap();
-                appState.selectedShip = null;
-                
-                showNotification(`Корабль "${ship.name}" удален`, 'warning');
-                addEvent(`Корабль "${ship.name}" удален`, 'warning');
+                // Отправляем на сервер
+                socket.emit('shipDeleted', ship.id);
             }
         }
         
@@ -1988,7 +2176,6 @@
             ship.location = targetPlanetId;
             
             showNotification(`Корабль "${ship.name}" отправлен на планету "${targetPlanet.name}". Время в пути: ${formatTime(travelTime)}`);
-            addEvent(`Корабль "${ship.name}" отправлен на планету "${targetPlanet.name}"`, 'info');
             
             // Обновляем интерфейс
             updatePlanetFleetList();
@@ -2050,6 +2237,18 @@
             shipElement.style.left = `${toPlanet.x}px`;
             shipElement.style.top = `${toPlanet.y}px`;
             
+            const travelData = {
+                shipId: ship.id,
+                fromPlanet: fromPlanet.id,
+                toPlanet: toPlanet.id,
+                duration: travelTime,
+                shipName: ship.name,
+                planetName: toPlanet.name
+            };
+            
+            // Отправляем на сервер
+            socket.emit('travelStarted', travelData);
+            
             const progressInterval = setInterval(() => {
                 const elapsed = Date.now() - travelInfo.startTime;
                 travelInfo.progress = Math.min(1, elapsed / travelTime);
@@ -2075,7 +2274,6 @@
                 
                 if (isSuccess) {
                     showNotification(`Миссия успешна! Корабль "${ship.name}" достиг цели.`, 'success');
-                    addEvent(`Корабль "${ship.name}" успешно завершил миссию`, 'success');
                 } else {
                     // Наносим урон кораблю
                     const damage = DAMAGE_AMOUNT;
@@ -2086,11 +2284,9 @@
                         ship.destroyed = true;
                         shipElement.classList.add('destroyed');
                         showNotification(`Корабль "${ship.name}" уничтожен во время миссии!`, 'danger');
-                        addEvent(`Корабль "${ship.name}" уничтожен во время миссии (получен урон: ${damage} HP)`, 'danger');
                     } else {
                         shipElement.classList.add('damaged');
                         showNotification(`Миссия провалена! Корабль "${ship.name}" получил урон: ${damage} HP. Осталось здоровья: ${ship.currentHealth}/${ship.maxHealth}`, 'warning');
-                        addEvent(`Корабль "${ship.name}" получил урон во время миссии: ${damage} HP. Осталось здоровья: ${ship.currentHealth}/${ship.maxHealth}`, 'warning');
                     }
                 }
                 
@@ -2278,15 +2474,7 @@
             if (appState.contextMenuTarget.type === 'planet') {
                 const planet = appState.planets.find(p => p.id === appState.contextMenuTarget.id);
                 if (planet && confirm(`Вы уверены, что хотите удалить планету "${planet.name}"?`)) {
-                    appState.planets = appState.planets.filter(p => p.id !== planet.id);
-                    appState.ships = appState.ships.filter(ship => ship.location !== planet.id);
-                    appState.routes = appState.routes.filter(route => 
-                        route.from !== planet.id && route.to !== planet.id
-                    );
-                    
-                    renderMap();
-                    showNotification(`Планета "${planet.name}" удалена`, 'warning');
-                    addEvent(`Планета "${planet.name}" удалена`, 'warning');
+                    socket.emit('planetDeleted', planet.id);
                 }
                 document.getElementById('context-menu').style.display = 'none';
             }
@@ -2296,10 +2484,7 @@
             if (appState.contextMenuTarget.type === 'ship') {
                 const ship = appState.ships.find(s => s.id === appState.contextMenuTarget.id);
                 if (ship && confirm(`Вы уверены, что хотите удалить корабль "${ship.name}"?`)) {
-                    appState.ships = appState.ships.filter(s => s.id !== ship.id);
-                    renderMap();
-                    showNotification(`Корабль "${ship.name}" удален`, 'warning');
-                    addEvent(`Корабль "${ship.name}" удален`, 'warning');
+                    socket.emit('shipDeleted', ship.id);
                 }
                 document.getElementById('context-menu').style.display = 'none';
             }
@@ -2541,7 +2726,7 @@
             }, 5000);
         }
         
-        function addEvent(message, type = 'info') {
+        function addEventToLog(message, type = 'info') {
             const eventLog = document.getElementById('event-log');
             const eventItem = document.createElement('div');
             eventItem.className = `event-item ${type}`;
