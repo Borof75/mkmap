@@ -1270,7 +1270,6 @@
             initializeApp();
             setupEventListeners();
             setupAutoSave();
-            loadFromFirebase();
         });
 
         function setupAutoSave() {
@@ -1325,9 +1324,7 @@
 
         function initializeApp() {
             contextMenu = document.getElementById('context-menu');
-            updatePlanetsList();
-            updateShipsList();
-            updateLocationSelects();
+            loadFromFirebase();
             showTab('system');
         }
 
@@ -1481,6 +1478,18 @@
             ];
             
             renderShips();
+        }
+
+        function initializeDefaultData() {
+            if (planets.length === 0 && ships.length === 0) {
+                createInitialPlanets();
+                createInitialShips();
+                // Автоматически сохраняем начальные данные при первом запуске
+                setTimeout(() => {
+                    saveToFirebase();
+                    showNotification('Созданы и сохранены начальные данные', 'info');
+                }, 2000);
+            }
         }
 
         function renderPlanets() {
@@ -2538,7 +2547,7 @@
             database.ref('universeMap').once('value')
                 .then((snapshot) => {
                     const data = snapshot.val();
-                    if (data) {
+                    if (data && data.planets && data.ships) {
                         planets = data.planets || [];
                         ships = data.ships || [];
                         
@@ -2558,9 +2567,9 @@
                             addEvent(`Данные загружены (последнее сохранение: ${lastSave})`, 'info');
                         }
                     } else {
+                        // Если данных нет, создаем начальные данные и сразу сохраняем их
                         showNotification('В Firebase нет сохраненных данных. Созданы начальные данные.', 'warning');
-                        if (planets.length === 0) createInitialPlanets();
-                        if (ships.length === 0) createInitialShips();
+                        initializeDefaultData();
                     }
                 })
                 .catch((error) => {
@@ -2568,8 +2577,8 @@
                     showNotification('Ошибка загрузки из Firebase: ' + error.message, 'danger');
                     addEvent('Ошибка загрузки данных из облака', 'danger');
                     
-                    if (planets.length === 0) createInitialPlanets();
-                    if (ships.length === 0) createInitialShips();
+                    // При ошибке тоже создаем начальные данные
+                    initializeDefaultData();
                 });
         }
 
