@@ -2,2607 +2,689 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Универсальная картография</title>
-    <!-- Добавляем Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Аукцион | Отряд реаниматологов</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, sans-serif;
         }
-        
+
         body {
-            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
-            color: #e0e0e0;
+            background: #fafafc;
             min-height: 100vh;
-            overflow: hidden;
+            padding: 2rem 1.5rem;
+            color: #1e1e2a;
         }
-        
+
         .container {
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
+            max-width: 1280px;
+            margin: 0 auto;
         }
-        
-        header {
-            background: rgba(20, 20, 20, 0.95);
-            padding: 1rem 2rem;
-            border-bottom: 1px solid #333;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-            z-index: 20;
-        }
-        
-        .header-content {
+
+        /* минималистичная карточная сетка */
+        .header {
             display: flex;
+            flex-wrap: wrap;
             justify-content: space-between;
             align-items: center;
-        }
-        
-        .logo {
-            font-size: 1.8rem;
-            font-weight: bold;
-            color: #4a86e8;
-            text-shadow: 0 0 10px rgba(74, 134, 232, 0.7);
-        }
-        
-        .date {
-            font-size: 1rem;
-            color: #666;
-        }
-        
-        .main-content {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-        }
-        
-        .sidebar {
-            width: 400px;
-            background: rgba(25, 25, 25, 0.95);
-            padding: 1.5rem;
-            border-right: 1px solid #333;
-            overflow-y: auto;
-            z-index: 10;
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-        }
-        
-        .sidebar-content {
-            flex: 1;
-            overflow-y: auto;
-            padding-right: 5px;
-        }
-        
-        .sidebar-content::-webkit-scrollbar {
-            width: 6px;
-        }
-        
-        .sidebar-content::-webkit-scrollbar-track {
-            background: rgba(40, 40, 40, 0.5);
-            border-radius: 3px;
-        }
-        
-        .sidebar-content::-webkit-scrollbar-thumb {
-            background: #4a86e8;
-            border-radius: 3px;
-        }
-        
-        .map-container {
-            flex: 1;
-            position: relative;
-            overflow: hidden;
-            background: 
-                radial-gradient(circle at 20% 30%, #2a2a2a 0%, transparent 50%),
-                radial-gradient(circle at 80% 70%, #1a1a1a 0%, transparent 50%),
-                #0a0a0a;
-            cursor: grab;
-        }
-        
-        .map-container:active {
-            cursor: grabbing;
-        }
-        
-        .map {
-            width: 100%;
-            height: 100%;
-            position: relative;
-            transform-origin: 0 0;
-            transition: transform 0.1s ease;
-        }
-        
-        .planet {
-            position: absolute;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: transform 0.3s, filter 0.3s;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: white;
-            font-weight: bold;
-            text-shadow: 0 0 5px black;
-            box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
-            z-index: 5;
-        }
-        
-        .planet:hover {
-            transform: scale(1.1);
-            filter: brightness(1.3);
-        }
-        
-        .planet.selected {
-            box-shadow: 0 0 25px 8px #4a86e8;
-        }
-        
-        .planet.dragging {
-            cursor: grabbing;
-            opacity: 0.8;
-        }
-        
-        .planet-label {
-            position: absolute;
-            bottom: -25px;
-            text-align: center;
-            font-size: 0.9rem;
-            color: #aaa;
-            white-space: nowrap;
-        }
-        
-        .ship {
-            position: absolute;
-            width: 20px;
-            height: 20px;
-            transform-origin: center;
-            transition: all 0.5s;
-            z-index: 10;
-            cursor: pointer;
-            border: 1px solid rgba(255, 255, 255, 0.5);
-        }
-        
-        .ship.shuttle {
-            background: #888888;
-            border-radius: 50%;
-            width: 12px;
-            height: 12px;
-        }
-        
-        .ship.corvette {
-            background: #44ff44;
-            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-            width: 16px;
-            height: 16px;
-        }
-        
-        .ship.frigate {
-            background: #4444ff;
-            clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
-        }
-        
-        .ship.light-cruiser {
-            background: #ffaa00;
-            clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%);
-        }
-        
-        .ship.cruiser {
-            background: #ff4444;
-            clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
-        }
-        
-        .ship.assault {
-            background: #ff00ff;
-            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
-        }
-        
-        .ship.destroyer {
-            background: #aa00ff;
-            clip-path: polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%);
-            width: 24px;
-            height: 24px;
-        }
-        
-        .ship.moving {
-            animation: pulse 1.5s infinite alternate;
-        }
-        
-        .ship.selected {
-            filter: drop-shadow(0 0 8px currentColor);
-        }
-        
-        .ship.damaged {
-            opacity: 0.7;
-            filter: brightness(0.8);
-        }
-        
-        .ship.destroyed {
-            opacity: 0.3;
-            filter: grayscale(1);
-            animation: none;
-        }
-        
-        @keyframes pulse {
-            from { 
-                filter: drop-shadow(0 0 3px currentColor);
-            }
-            to { 
-                filter: drop-shadow(0 0 10px currentColor);
-            }
-        }
-        
-        .route {
-            position: absolute;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, #444, transparent);
-            transform-origin: 0 0;
-            z-index: 1;
-        }
-        
-        .route::before {
-            content: '';
-            position: absolute;
-            top: -1px;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: rgba(68, 68, 68, 0.3);
-        }
-        
-        .controls {
-            display: flex;
-            gap: 10px;
-            margin-top: 1rem;
-            flex-wrap: wrap;
-        }
-        
-        button {
-            background: #333;
-            color: #ccc;
-            border: 1px solid #444;
-            padding: 8px 15px;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        button:hover {
-            background: #444;
-            border-color: #555;
-        }
-        
-        button:disabled {
-            background: #222;
-            color: #666;
-            border-color: #333;
-            cursor: not-allowed;
-        }
-        
-        .section {
+            gap: 1.2rem;
             margin-bottom: 2rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid #eaeef2;
         }
-        
-        .section-title {
-            font-size: 1.2rem;
-            color: #4a86e8;
-            margin-bottom: 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid #333;
-        }
-        
-        .planet-info {
-            background: rgba(40, 40, 40, 0.7);
-            padding: 1rem;
-            border-radius: 6px;
-            margin-bottom: 1rem;
-            border: 1px solid #333;
-        }
-        
-        .planet-name {
-            font-size: 1.3rem;
-            color: #4a86e8;
-            margin-bottom: 0.5rem;
-        }
-        
-        .fleet-list {
-            margin-top: 1rem;
-        }
-        
-        .fleet-item {
-            background: rgba(35, 35, 35, 0.7);
-            padding: 0.8rem;
-            border-radius: 4px;
-            margin-bottom: 0.5rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border: 1px solid #333;
-        }
-        
-        .form-group {
-            margin-bottom: 1rem;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 0.5rem;
-            color: #888;
-        }
-        
-        input, textarea, select {
-            width: 100%;
-            padding: 0.5rem;
-            background: rgba(40, 40, 40, 0.8);
-            border: 1px solid #444;
-            border-radius: 4px;
-            color: #ccc;
-        }
-        
-        input:focus, textarea:focus, select:focus {
-            outline: none;
-            border-color: #4a86e8;
-        }
-        
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            z-index: 100;
-            justify-content: center;
-            align-items: center;
-        }
-        
-        .modal-content {
-            background: #1a1a1a;
-            padding: 2rem;
-            border-radius: 8px;
-            width: 500px;
-            max-width: 90%;
-            box-shadow: 0 0 30px rgba(74, 134, 232, 0.2);
-            border: 1px solid #333;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-        
-        .modal-title {
-            font-size: 1.5rem;
-            margin-bottom: 1.5rem;
-            color: #4a86e8;
-        }
-        
-        .close {
-            float: right;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: #666;
-        }
-        
-        .close:hover {
-            color: #888;
-        }
-        
-        .zoom-indicator {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(30, 30, 30, 0.8);
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            font-size: 0.9rem;
-            color: #888;
-            z-index: 20;
-            border: 1px solid #333;
-        }
-        
-        .help-tooltip {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            background: rgba(30, 30, 30, 0.8);
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            font-size: 0.9rem;
-            color: #666;
-            z-index: 20;
-            border: 1px solid #333;
-        }
-        
-        .travel-time-controls {
-            margin-top: 1rem;
-            padding: 1rem;
-            background: rgba(40, 40, 40, 0.7);
-            border-radius: 6px;
-            border: 1px solid #333;
-        }
-        
-        .time-input-group {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            margin-bottom: 0.5rem;
-        }
-        
-        .time-input {
-            width: 80px;
-            text-align: center;
-        }
-        
-        .ship-progress {
-            width: 100%;
-            height: 6px;
-            background: rgba(50, 50, 50, 0.5);
-            border-radius: 3px;
-            margin-top: 0.5rem;
-            overflow: hidden;
-            border: 1px solid #333;
-        }
-        
-        .ship-progress-bar {
-            height: 100%;
-            background: linear-gradient(90deg, #4a86e8, #6cb4ee);
-            width: 0%;
-            transition: width 0.5s;
-        }
-        
-        .travel-info {
-            margin-top: 0.5rem;
-            font-size: 0.9rem;
-            color: #777;
-        }
-        
-        .context-menu {
-            position: absolute;
-            background: rgba(35, 35, 35, 0.95);
-            border: 1px solid #444;
-            border-radius: 6px;
-            padding: 0.5rem;
-            z-index: 100;
-            display: none;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-        }
-        
-        .context-menu button {
-            display: block;
-            width: 100%;
-            text-align: left;
-            margin-bottom: 0.3rem;
+
+        .title h1 {
+            font-size: 1.8rem;
+            font-weight: 650;
+            letter-spacing: -0.3px;
+            color: #c22a2a;
             background: none;
-            border: none;
-            padding: 0.5rem 1rem;
-            color: #ccc;
+            -webkit-background-clip: unset;
+            background-clip: unset;
+            color: #c22a2a;
         }
-        
-        .context-menu button:hover {
-            background: rgba(60, 60, 60, 0.7);
+
+        .title p {
+            font-size: 0.85rem;
+            color: #5b6e8c;
+            margin-top: 6px;
+            font-weight: 450;
         }
-        
-        .notification {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(40, 40, 40, 0.9);
-            padding: 1rem 2rem;
-            border-radius: 6px;
-            box-shadow: 0 0 20px rgba(74, 134, 232, 0.2);
-            z-index: 1000;
-            display: none;
-            border: 1px solid #444;
-            color: #ccc;
-            max-width: 80%;
+
+        .timer-card {
+            background: white;
+            padding: 0.5rem 1.2rem;
+            border-radius: 20px;
             text-align: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.03);
+            border: 1px solid #f0f2f5;
         }
-        
-        .notification.warning {
-            background: rgba(200, 100, 0, 0.9);
-            border-color: #ff8800;
+
+        .timer-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 500;
+            color: #8a99b0;
         }
-        
-        .notification.danger {
-            background: rgba(200, 0, 0, 0.9);
-            border-color: #ff4444;
+
+        .timer-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            font-family: monospace;
+            letter-spacing: 1px;
+            color: #c22a2a;
         }
-        
-        .notification.success {
-            background: rgba(0, 150, 0, 0.9);
-            border-color: #44ff44;
+
+        .current-session {
+            background: #ffffff;
+            padding: 0.4rem 1.2rem;
+            border-radius: 40px;
+            font-weight: 500;
+            font-size: 0.85rem;
+            border: 1px solid #ffd9d9;
+            color: #b91c1c;
         }
-        
-        .time-presets {
+
+        /* сетка */
+        .auction-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.2fr;
+            gap: 2rem;
+            margin: 2rem 0 2rem;
+        }
+
+        /* карточки */
+        .bid-card, .rank-card {
+            background: #ffffff;
+            border-radius: 28px;
+            padding: 1.6rem;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.02), 0 1px 3px rgba(0, 0, 0, 0.03);
+            border: 1px solid #edeff2;
+            transition: all 0.2s;
+        }
+
+        .bid-card h2, .rank-card h2 {
+            font-size: 1.35rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
             display: flex;
-            gap: 5px;
-            margin-top: 0.5rem;
-            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            color: #1f2a3e;
         }
-        
-        .time-preset {
-            padding: 4px 8px;
+
+        .bid-card h2 span {
+            background: #ffeeee;
+            color: #c22a2a;
+            font-size: 0.7rem;
+            padding: 2px 10px;
+            border-radius: 40px;
+            font-weight: 500;
+        }
+
+        .input-group {
+            margin: 1.2rem 0;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: #4a5b7a;
+            letter-spacing: 0.3px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px 16px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            font-size: 0.95rem;
+            color: #11181c;
+            outline: none;
+            transition: 0.2s;
+        }
+
+        .input-group input:focus {
+            border-color: #c22a2a;
+            box-shadow: 0 0 0 2px rgba(194, 42, 42, 0.1);
+        }
+
+        .place-badge {
+            display: flex;
+            gap: 0.8rem;
+            margin: 1rem 0;
+            background: #fef8f8;
+            padding: 0.7rem 1rem;
+            border-radius: 24px;
+            justify-content: space-between;
             font-size: 0.8rem;
-            background: #333;
-            border: 1px solid #444;
-            border-radius: 3px;
+            font-weight: 500;
+            color: #2c3e4e;
+        }
+
+        button {
+            background: #c22a2a;
+            border: none;
+            width: 100%;
+            padding: 12px;
+            font-weight: 600;
+            font-size: 1rem;
+            border-radius: 40px;
+            color: white;
             cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 0.3rem;
+            box-shadow: none;
         }
-        
-        .time-preset:hover {
-            background: #444;
+
+        button:hover {
+            background: #a51f1f;
+            transform: scale(0.98);
         }
-        
-        .ship-type-indicator {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            margin-right: 5px;
-            vertical-align: middle;
+
+        .message {
+            margin-top: 1.2rem;
+            font-size: 0.8rem;
+            background: #f8fafc;
+            padding: 10px 14px;
+            border-radius: 20px;
+            border-left: 3px solid #c22a2a;
+            color: #2d3a4b;
         }
-        
-        .ship-type-indicator.shuttle {
-            background: #888888;
-            border-radius: 50%;
+
+        /* таблица */
+        .leaderboard-table {
+            width: 100%;
+            border-collapse: collapse;
         }
-        
-        .ship-type-indicator.corvette {
-            background: #44ff44;
-            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+
+        .leaderboard-table th, .leaderboard-table td {
+            padding: 12px 6px;
+            text-align: left;
+            border-bottom: 1px solid #edf2f7;
         }
-        
-        .ship-type-indicator.frigate {
-            background: #4444ff;
-            clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+
+        .leaderboard-table th {
+            color: #5a6e8c;
+            font-weight: 500;
+            font-size: 0.75rem;
         }
-        
-        .ship-type-indicator.light-cruiser {
-            background: #ffaa00;
-            clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%);
+
+        .rank-1 td:first-child, .rank-2 td:first-child, .rank-3 td:first-child {
+            font-weight: 700;
         }
-        
-        .ship-type-indicator.cruiser {
-            background: #ff4444;
-            clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
+
+        .rank-1 { background: #fff9f0; border-radius: 16px; }
+        .rank-2 { background: #fefcf9; }
+        .rank-3 { background: #fefaf5; }
+
+        .badge-medal {
+            font-size: 1.1rem;
         }
-        
-        .ship-type-indicator.assault {
-            background: #ff00ff;
-            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
-        }
-        
-        .ship-type-indicator.destroyer {
-            background: #aa00ff;
-            clip-path: polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%);
-        }
-        
-        .event-log {
+
+        .active-bids {
             margin-top: 1rem;
+            background: #f9f9fc;
+            border-radius: 24px;
+            padding: 10px;
+            font-size: 0.7rem;
+            text-align: center;
+            color: #4b5b79;
+            border: 1px solid #eff3f6;
+        }
+
+        /* история */
+        .history-section {
+            margin-top: 2rem;
+            background: white;
+            border-radius: 28px;
+            padding: 1.2rem 1.5rem;
+            border: 1px solid #edeff2;
+        }
+
+        .history-section h3 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 1rem;
+            font-weight: 550;
+            color: #1f2a3e;
+        }
+
+        .history-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.8rem;
             max-height: 150px;
             overflow-y: auto;
-            background: rgba(30, 30, 30, 0.7);
-            border: 1px solid #333;
-            border-radius: 4px;
-            padding: 0.5rem;
-            font-size: 0.8rem;
-        }
-        
-        .event-item {
-            margin-bottom: 0.3rem;
-            padding: 0.2rem 0.5rem;
-            border-radius: 3px;
-            background: rgba(50, 50, 50, 0.5);
-        }
-        
-        .event-item.warning {
-            background: rgba(200, 100, 0, 0.3);
-            border-left: 3px solid #ff8800;
-        }
-        
-        .event-item.danger {
-            background: rgba(200, 0, 0, 0.3);
-            border-left: 3px solid #ff4444;
-        }
-        
-        .event-item.info {
-            background: rgba(0, 100, 200, 0.3);
-            border-left: 3px solid #4a86e8;
-        }
-        
-        .event-item.success {
-            background: rgba(0, 150, 0, 0.3);
-            border-left: 3px solid #44ff44;
-        }
-        
-        .tab-container {
-            margin-top: 1rem;
-        }
-        
-        .tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 1rem;
-            flex-wrap: wrap;
-        }
-        
-        .tab {
-            padding: 0.6rem 1.2rem;
-            cursor: pointer;
-            border: 1px solid #444;
-            border-radius: 6px;
-            background: #2a2a2a;
-            color: #ccc;
-            font-size: 0.9rem;
-            transition: all 0.3s;
-            text-align: center;
-            flex: 1;
-            min-width: 120px;
-        }
-        
-        .tab:hover {
-            background: #333;
-            border-color: #555;
-        }
-        
-        .tab.active {
-            background: #4a86e8;
-            border-color: #6cb4ee;
-            color: white;
-            box-shadow: 0 0 15px rgba(74, 134, 232, 0.4);
-        }
-        
-        .tab-content {
-            display: none;
-            animation: fadeIn 0.3s ease;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .tab-content.active {
-            display: block;
-        }
-        
-        .planet-coords {
-            font-size: 0.8rem;
-            color: #888;
-            margin-top: 0.5rem;
-        }
-        
-        .ship-image-container {
-            margin: 1rem 0;
-            text-align: center;
-        }
-        
-        .ship-image {
-            max-width: 100%;
-            max-height: 200px;
-            border-radius: 6px;
-            border: 1px solid #444;
-            background: rgba(40, 40, 40, 0.8);
-            padding: 5px;
-        }
-        
-        .ship-image-placeholder {
-            width: 100%;
-            height: 150px;
-            background: rgba(40, 40, 40, 0.8);
-            border: 2px dashed #444;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #666;
-            font-size: 0.9rem;
-        }
-        
-        .image-upload-btn {
-            margin-top: 0.5rem;
-            width: 100%;
-        }
-        
-        .ship-details {
-            background: rgba(40, 40, 40, 0.7);
-            padding: 1rem;
-            border-radius: 6px;
-            margin-top: 1rem;
-            border: 1px solid #333;
-        }
-        
-        .ship-owner {
-            font-size: 1rem;
-            color: #4a86e8;
-            margin-bottom: 0.5rem;
-        }
-        
-        .ship-description {
-            font-size: 0.9rem;
-            color: #aaa;
-            line-height: 1.4;
-        }
-        
-        .file-input {
-            display: none;
-        }
-        
-        .ship-info-extended {
-            margin-top: 1rem;
-        }
-        
-        .ship-stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0.5rem;
-            margin-top: 1rem;
-        }
-        
-        .stat-item {
-            background: rgba(35, 35, 35, 0.7);
-            padding: 0.5rem;
-            border-radius: 4px;
-            border: 1px solid #333;
-            font-size: 0.9rem;
-        }
-        
-        .stat-label {
-            color: #888;
-            font-size: 0.8rem;
-        }
-        
-        .stat-value {
-            color: #4a86e8;
-            font-weight: bold;
-        }
-        
-        .health-bar {
-            width: 100%;
-            height: 8px;
-            background: rgba(50, 50, 50, 0.5);
-            border-radius: 4px;
-            margin-top: 0.3rem;
-            overflow: hidden;
-            border: 1px solid #333;
-        }
-        
-        .health-bar-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #ff4444, #ffaa00, #44ff44);
-            width: 100%;
-            transition: width 0.5s;
-        }
-        
-        .quick-actions {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 1.5rem;
-            flex-wrap: wrap;
-        }
-        
-        .quick-action-btn {
-            flex: 1;
-            min-width: 80px;
-            padding: 0.8rem 0.5rem;
-            background: #2a2a2a;
-            border: 1px solid #444;
-            border-radius: 6px;
-            color: #ccc;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-align: center;
-            font-size: 0.85rem;
-        }
-        
-        .quick-action-btn:hover {
-            background: #333;
-            border-color: #555;
-        }
-        
-        .quick-action-btn.active {
-            background: #4a86e8;
-            border-color: #6cb4ee;
-            color: white;
-            box-shadow: 0 0 15px rgba(74, 134, 232, 0.4);
-        }
-        
-        .quick-action-btn.primary {
-            background: #4a86e8;
-            border-color: #6cb4ee;
-            color: white;
-        }
-        
-        .quick-action-btn.primary:hover {
-            background: #5a96f8;
-            box-shadow: 0 0 10px rgba(74, 134, 232, 0.3);
-        }
-        
-        .content-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-        
-        .content-title {
-            font-size: 1.3rem;
-            color: #4a86e8;
-            font-weight: bold;
-        }
-        
-        .success-chance {
-            margin-top: 1rem;
-            padding: 1rem;
-            background: rgba(40, 40, 40, 0.7);
-            border-radius: 6px;
-            border: 1px solid #333;
-        }
-        
-        .chance-value {
-            font-size: 1.5rem;
-            color: #4a86e8;
-            font-weight: bold;
-            text-align: center;
-            margin: 0.5rem 0;
-        }
-        
-        .chance-good {
-            color: #44ff44;
-        }
-        
-        .chance-medium {
-            color: #ffaa00;
-        }
-        
-        .chance-low {
-            color: #ff4444;
-        }
-        
-        .firebase-controls {
-            display: flex;
-            gap: 10px;
-            margin-top: 1rem;
-            flex-wrap: wrap;
-        }
-        
-        .firebase-btn {
-            flex: 1;
-            background: #4a86e8;
-            color: white;
-            border: 1px solid #6cb4ee;
-        }
-        
-        .firebase-btn:hover {
-            background: #5a96f8;
-            box-shadow: 0 0 10px rgba(74, 134, 232, 0.3);
-        }
-        
-        .firebase-btn.save {
-            background: #44aa44;
-            border-color: #66cc66;
-        }
-        
-        .firebase-btn.save:hover {
-            background: #55bb55;
-        }
-        
-        .firebase-btn.load {
-            background: #e69138;
-            border-color: #f1c232;
-        }
-        
-        .firebase-btn.load:hover {
-            background: #f6b26b;
+            padding: 4px;
         }
 
-        .firebase-btn.auto-save {
-            background: #a64d79;
-            border-color: #c27ba0;
+        .history-item {
+            background: #fefaf5;
+            border-radius: 20px;
+            padding: 8px 15px;
+            font-size: 0.75rem;
+            flex: 1 1 220px;
+            border-left: 3px solid #c22a2a;
+            color: #2c3e50;
         }
 
-        .firebase-btn.auto-save:hover {
-            background: #b5739d;
+        .footer-note {
+            text-align: center;
+            font-size: 0.7rem;
+            margin-top: 2rem;
+            color: #8a99b0;
+            border-top: 1px solid #edf2f7;
+            padding-top: 1.5rem;
         }
 
-        .firebase-btn.auto-save.disabled {
-            background: #666;
-            border-color: #888;
+        @media (max-width: 780px) {
+            .auction-grid { grid-template-columns: 1fr; }
+            .timer-value { font-size: 1.3rem; }
+            body { padding: 1rem; }
         }
 
-        .auto-save-indicator {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            background: rgba(30, 30, 30, 0.9);
-            padding: 0.3rem 0.8rem;
-            border-radius: 4px;
-            font-size: 0.8rem;
-            color: #44ff44;
-            z-index: 20;
-            border: 1px solid #44ff44;
-            display: none;
+        /* минималистичные акценты */
+        .rank-card h2::before {
+            content: "🏆";
+            font-size: 1.2rem;
+        }
+        .bid-card h2::before {
+            content: "⚡";
+            font-size: 1.2rem;
+        }
+        button:active {
+            transform: scale(0.96);
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <div class="header-content">
-                <div class="logo">УНИВЕРСАЛЬНАЯ КАРТОГРАФИЯ</div>
-                <div class="date">21 октября 2023 г.</div>
+<div class="container">
+    <div class="header">
+        <div class="title">
+            <h1>АУКЦИОН РЕАНИМАТОЛОГОВ</h1>
+            <p>3 места в отряде · торги 14 дней · следующий отряд стартует после окончания</p>
+        </div>
+        <div class="timer-card">
+            <div class="timer-label">ДО ЗАВЕРШЕНИЯ</div>
+            <div class="timer-value" id="countdownDisplay">-- дн -- ч -- мин</div>
+        </div>
+        <div class="current-session" id="sessionStatus">
+            🔄 загрузка...
+        </div>
+    </div>
+
+    <div class="auction-grid">
+        <!-- форма ставки -->
+        <div class="bid-card">
+            <h2>Сделать ставку <span>топ-3 победят</span></h2>
+            <div class="input-group">
+                <label>👤 Никнейм</label>
+                <input type="text" id="nicknameInput" placeholder="Ваш позывной" maxlength="24">
             </div>
-        </header>
+            <div class="input-group">
+                <label>💰 Сумма ставки (Баллы)</label>
+                <input type="number" id="bidAmountInput" placeholder="Минимум 10" step="1" min="1">
+            </div>
+            <div class="place-badge">
+                <div>🥇 1 место</div>
+                <div>🥈 2 место</div>
+                <div>🥉 3 место</div>
+            </div>
+            <button id="placeBidBtn">ПОДНЯТЬ СТАВКУ</button>
+            <div class="message" id="infoMessage">
+                💡 Чтобы занять место в отряде, ваша ставка должна войти в топ-3. Если вытеснят — перебивайте.
+            </div>
+        </div>
+
+        <!-- таблица лидеров -->
+        <div class="rank-card">
+            <h2>Текущие лидеры</h2>
+            <table class="leaderboard-table" id="leaderboardTable">
+                <thead>
+                    <tr><th>Место</th><th>Ник</th><th>Ставка</th></tr>
+                </thead>
+                <tbody id="leaderboardBody">
+                    <tr><td colspan="3" style="text-align:center; color:#8b9ab0;">Загрузка ставок...</td></tr>
+                </tbody>
+            </table>
+            <div class="active-bids" id="bidCountInfo">
+                📊 Всего участников: 0
+            </div>
+        </div>
+    </div>
+
+    <!-- история аукционов -->
+    <div class="history-section">
+        <h3>📋 Архив отрядов</h3>
+        <div id="historyList" class="history-list">
+            <div style="color:#8a99b0;">История пополняется после каждого завершённого аукциона</div>
+        </div>
+    </div>
+    <div class="footer-note">
+        ⏱️ Каждые 2 недели аукцион закрывается. Топ-3 получают места в отряде реаниматологов.<br>
+        Новый аукцион стартует автоматически с чистой таблицей.
+    </div>
+</div>
+
+<script type="module">
+    // Импортируйте нужные функции из SDK
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+    import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, orderBy, limit, addDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
+    
+    // Конфигурация Firebase вашего веб-приложения
+    const firebaseConfig = {
+        apiKey: "AIzaSyDqIjzNPTvNp75_61lQrYTrXTNGZLN5v-w",
+        authDomain: "reanimatolog-1a4b1.firebaseapp.com",
+        projectId: "reanimatolog-1a4b1",
+        storageBucket: "reanimatolog-1a4b1.firebasestorage.app",
+        messagingSenderId: "333813497268",
+        appId: "1:333813497268:web:96311d835cf883f21ec6e1"
+    };
+    
+    // Инициализация Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    
+    // Константы
+    const AUCTION_DURATION_MS = 14 * 24 * 60 * 60 * 1000; // 14 дней
+    let auctionEndTime = null;
+    let isProcessingRollover = false;
+    
+    // Функции для работы с Firestore
+    async function loadBids() {
+        try {
+            const bidsQuery = query(collection(db, "activeBids"), orderBy("amount", "desc"));
+            const querySnapshot = await getDocs(bidsQuery);
+            const bids = [];
+            querySnapshot.forEach((doc) => {
+                bids.push({ id: doc.id, ...doc.data() });
+            });
+            return bids;
+        } catch (error) {
+            console.error("Ошибка загрузки ставок:", error);
+            return [];
+        }
+    }
+    
+    async function loadAuctionEndTime() {
+        try {
+            const settingsDoc = await getDoc(doc(db, "settings", "auction"));
+            if (settingsDoc.exists()) {
+                return settingsDoc.data().endTime;
+            } else {
+                const newEndTime = Date.now() + AUCTION_DURATION_MS;
+                await setDoc(doc(db, "settings", "auction"), { endTime: newEndTime });
+                return newEndTime;
+            }
+        } catch (error) {
+            console.error("Ошибка загрузки времени:", error);
+            return Date.now() + AUCTION_DURATION_MS;
+        }
+    }
+    
+    async function loadHistory() {
+        try {
+            const historyQuery = query(collection(db, "auctionHistory"), orderBy("timestamp", "desc"), limit(20));
+            const querySnapshot = await getDocs(historyQuery);
+            const history = [];
+            querySnapshot.forEach((doc) => {
+                history.push(doc.data());
+            });
+            return history;
+        } catch (error) {
+            console.error("Ошибка загрузки истории:", error);
+            return [];
+        }
+    }
+    
+    async function placeBid(nick, amount) {
+        try {
+            if (!nick || nick.trim().length === 0) return { success: false, message: "Введите никнейм" };
+            if (nick.length > 24) return { success: false, message: "Ник слишком длинный (макс 24)" };
+            const cleanNick = nick.trim();
+            if (amount <= 0 || isNaN(amount) || !Number.isInteger(amount)) return { success: false, message: "Ставка должна быть целым числом > 0" };
+            if (amount < 10) return { success: false, message: "Минимальная ставка = 10" };
+            if (amount > 99999999) return { success: false, message: "Слишком большая сумма" };
+            
+            const currentEndTime = await loadAuctionEndTime();
+            if (Date.now() >= currentEndTime) {
+                return { success: false, message: "Аукцион завершён. Новый период скоро начнётся" };
+            }
+            
+            // Проверяем существующую ставку
+            const bids = await loadBids();
+            const existingBid = bids.find(b => b.nick.toLowerCase() === cleanNick.toLowerCase());
+            
+            if (existingBid) {
+                if (amount <= existingBid.amount) {
+                    return { success: false, message: `Ваша ставка ${existingBid.amount}. Нужно повысить (больше текущей).` };
+                }
+                // Обновляем существующую ставку
+                await updateDoc(doc(db, "activeBids", existingBid.id), {
+                    amount: amount,
+                    timestamp: Date.now()
+                });
+            } else {
+                // Создаем новую ставку
+                await addDoc(collection(db, "activeBids"), {
+                    nick: cleanNick,
+                    amount: amount,
+                    timestamp: Date.now()
+                });
+            }
+            
+            return { success: true, message: "ok" };
+        } catch (error) {
+            console.error("Ошибка при размещении ставки:", error);
+            return { success: false, message: "Ошибка сервера. Попробуйте позже." };
+        }
+    }
+    
+    async function finalizeAuction() {
+        if (isProcessingRollover) return;
+        isProcessingRollover = true;
         
-        <div class="main-content">
-            <div class="sidebar">
-                <div class="sidebar-content">
-                    <div class="quick-actions">
-                        <button class="quick-action-btn primary active" data-tab="system">
-                            <div>🌌</div>
-                            <div>Система</div>
-                        </button>
-                        <button class="quick-action-btn" data-tab="planets">
-                            <div>🪐</div>
-                            <div>Планеты</div>
-                        </button>
-                        <button class="quick-action-btn" data-tab="ships">
-                            <div>🚀</div>
-                            <div>Корабли</div>
-                        </button>
-                        <button class="quick-action-btn" data-tab="creation">
-                            <div>➕</div>
-                            <div>Создать</div>
-                        </button>
-                    </div>
-                    
-                    <div class="firebase-controls">
-                        <button class="firebase-btn save" id="save-to-firebase">Сохранить в Firebase</button>
-                        <button class="firebase-btn load" id="load-from-firebase">Загрузить из Firebase</button>
-                        <button class="firebase-btn auto-save" id="toggle-auto-save">Автосохранение: ВКЛ</button>
-                    </div>
-                    
-                    <div class="tab-content active" id="system-tab">
-                        <div class="content-header">
-                            <div class="content-title">СИСТЕМНАЯ ИНФОРМАЦИЯ</div>
-                        </div>
-                        
-                        <div class="section">
-                            <div class="planet-info">
-                                <div class="planet-name" id="selected-planet-name">Выберите планету</div>
-                                <div id="selected-planet-desc">Нажмите на планету на карте для просмотра информации</div>
-                                <div class="planet-coords" id="planet-coords"></div>
-                            </div>
-                            
-                            <div class="fleet-list">
-                                <div class="section-title">ФЛОТ НА ПЛАНЕТЕ</div>
-                                <div id="planet-fleet-list">
-                                    <div class="fleet-item">Нет кораблей</div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="section">
-                            <div class="section-title">ВЫБРАННЫЙ КОРАБЛЬ</div>
-                            <div class="ship-info">
-                                <div class="ship-name" id="selected-ship-name">Корабль не выбран</div>
-                                <div id="selected-ship-info">Нажмите на корабль на карте для выбора</div>
-                                
-                                <div class="ship-info-extended" id="ship-info-extended" style="display: none;">
-                                    <div class="ship-image-container">
-                                        <div class="ship-image-placeholder" id="ship-image-placeholder">
-                                            Изображение корабля не загружено
-                                        </div>
-                                        <img id="ship-image" class="ship-image" style="display: none;">
-                                        <button class="image-upload-btn" id="upload-ship-image">Загрузить изображение</button>
-                                        <input type="file" id="ship-image-input" class="file-input" accept="image/*">
-                                    </div>
-                                    
-                                    <div class="ship-details">
-                                        <div class="ship-owner">Владелец: <span id="ship-owner">Не указан</span></div>
-                                        <div class="ship-description" id="ship-description-text">
-                                            Описание корабля не добавлено
-                                        </div>
-                                        <button id="edit-ship-details" style="margin-top: 1rem; width: 100%;">Редактировать описание</button>
-                                    </div>
-                                    
-                                    <div class="ship-stats">
-                                        <div class="stat-item">
-                                            <div class="stat-label">Тип</div>
-                                            <div class="stat-value" id="ship-stat-type">-</div>
-                                        </div>
-                                        <div class="stat-item">
-                                            <div class="stat-label">Статус</div>
-                                            <div class="stat-value" id="ship-stat-status">-</div>
-                                        </div>
-                                        <div class="stat-item">
-                                            <div class="stat-label">Здоровье</div>
-                                            <div class="stat-value" id="ship-stat-health">-</div>
-                                            <div class="health-bar">
-                                                <div class="health-bar-fill" id="ship-health-bar"></div>
-                                            </div>
-                                        </div>
-                                        <div class="stat-item">
-                                            <div class="stat-label">Бонус успеха</div>
-                                            <div class="stat-value" id="ship-stat-bonus">-</div>
-                                        </div>
-                                        <div class="stat-item">
-                                            <div class="stat-label">Расположение</div>
-                                            <div class="stat-value" id="ship-stat-location">-</div>
-                                        </div>
-                                        <div class="stat-item">
-                                            <div class="stat-label">Скорость</div>
-                                            <div class="stat-value" id="ship-stat-speed">-</div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="success-chance" id="success-chance" style="display: none;">
-                                        <div class="section-title" style="font-size: 1rem; margin-bottom: 0.5rem;">ШАНС УСПЕХА МИССИИ</div>
-                                        <div class="chance-value" id="chance-value">0%</div>
-                                        <div style="text-align: center; color: #888; font-size: 0.9rem;">
-                                            Базовый шанс: 60% + бонус корабля
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="destination-select" id="destination-controls" style="display: none; margin-top: 1rem;">
-                                    <select id="destination-select">
-                                        <option value="">Выберите пункт назначения</option>
-                                    </select>
-                                    <button id="send-ship-btn" style="margin-top: 0.5rem; width: 100%;">Отправить корабль</button>
-                                </div>
-                                
-                                <div class="travel-time-controls" id="travel-time-controls" style="display: none;">
-                                    <div class="section-title" style="font-size: 1rem; margin-bottom: 0.5rem;">ВРЕМЯ ПУТИ</div>
-                                    
-                                    <div class="time-input-group">
-                                        <input type="number" id="travel-hours" class="time-input" min="0" value="0" max="24">
-                                        <span>часов</span>
-                                    </div>
-                                    
-                                    <div class="time-input-group">
-                                        <input type="number" id="travel-minutes" class="time-input" min="0" value="1" max="59">
-                                        <span>минут</span>
-                                    </div>
-                                    
-                                    <div class="time-input-group">
-                                        <input type="number" id="travel-seconds" class="time-input" min="0" value="0" max="59">
-                                        <span>секунд</span>
-                                    </div>
-                                    
-                                    <div class="time-presets">
-                                        <div class="time-preset" data-seconds="5">5 сек</div>
-                                        <div class="time-preset" data-seconds="30">30 сек</div>
-                                        <div class="time-preset" data-minutes="1">1 мин</div>
-                                        <div class="time-preset" data-minutes="5">5 мин</div>
-                                        <div class="time-preset" data-minutes="30">30 мин</div>
-                                        <div class="time-preset" data-hours="1">1 час</div>
-                                    </div>
-                                    
-                                    <div class="ship-progress">
-                                        <div class="ship-progress-bar" id="ship-progress-bar"></div>
-                                    </div>
-                                    
-                                    <div class="travel-info" id="travel-info"></div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="section">
-                            <div class="section-title">ЖУРНАЛ СОБЫТИЙ</div>
-                            <div class="event-log" id="event-log">
-                                <div class="event-item info">Система инициализирована</div>
-                                <div class="event-item">Карта загружена</div>
-                                <div class="event-item">Готов к работе</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="tab-content" id="planets-tab">
-                        <div class="content-header">
-                            <div class="content-title">УПРАВЛЕНИЕ ПЛАНЕТАМИ</div>
-                        </div>
-                        
-                        <div class="section">
-                            <div class="section-title">СПИСОК ПЛАНЕТ</div>
-                            <div id="planets-list">
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="tab-content" id="ships-tab">
-                        <div class="content-header">
-                            <div class="content-title">УПРАВЛЕНИЕ ФЛОТОМ</div>
-                        </div>
-                        
-                        <div class="section">
-                            <div class="section-title">СПИСОК КОРАБЛЕЙ</div>
-                            <div id="ships-list">
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="tab-content" id="creation-tab">
-                        <div class="content-header">
-                            <div class="content-title">СОЗДАНИЕ ОБЪЕКТОВ</div>
-                        </div>
-                        
-                        <div class="section">
-                            <div class="section-title">СОЗДАТЬ ПЛАНЕТУ</div>
-                            <div class="form-group">
-                                <label for="new-planet-name">Название планеты</label>
-                                <input type="text" id="new-planet-name" placeholder="Введите название">
-                            </div>
-                            <div class="form-group">
-                                <label for="new-planet-desc">Описание</label>
-                                <textarea id="new-planet-desc" placeholder="Введите описание планеты"></textarea>
-                            </div>
-                            <div class="form-group">
-                                <label for="new-planet-color">Цвет</label>
-                                <input type="color" id="new-planet-color" value="#4a86e8">
-                            </div>
-                            <div class="form-group">
-                                <label for="new-planet-size">Размер (20-100)</label>
-                                <input type="number" id="new-planet-size" min="20" max="100" value="40">
-                            </div>
-                            <button id="create-planet-btn">Создать планету</button>
-                        </div>
-                        
-                        <div class="section">
-                            <div class="section-title">СОЗДАТЬ КОРАБЛЬ</div>
-                            <div class="form-group">
-                                <label for="new-ship-name">Название корабля</label>
-                                <input type="text" id="new-ship-name" placeholder="Введите название">
-                            </div>
-                            <div class="form-group">
-                                <label for="new-ship-type">Тип корабля</label>
-                                <select id="new-ship-type">
-                                    <option value="shuttle">Шаттл</option>
-                                    <option value="corvette">Корвет</option>
-                                    <option value="frigate">Фрегат</option>
-                                    <option value="light-cruiser">Лёгкий крейсер</option>
-                                    <option value="cruiser">Крейсер</option>
-                                    <option value="assault">Ударный корабль</option>
-                                    <option value="destroyer">Звёздный разрушитель</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="new-ship-location">Местоположение</label>
-                                <select id="new-ship-location">
-                                    <option value="">Выберите планету</option>
-                                </select>
-                            </div>
-                            <button id="create-ship-btn">Создать корабль</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="map-container">
-                <div class="map" id="map">
-                </div>
+        try {
+            const currentEndTime = await loadAuctionEndTime();
+            if (Date.now() >= currentEndTime) {
+                const bids = await loadBids();
+                const winners = bids.slice(0, 3).map((bid, idx) => ({
+                    nick: bid.nick,
+                    amount: bid.amount,
+                    place: idx + 1
+                }));
                 
-                <div class="zoom-indicator">
-                    Масштаб: <span id="zoom-level">100%</span>
-                </div>
+                if (winners.length > 0) {
+                    // Сохраняем в историю
+                    await addDoc(collection(db, "auctionHistory"), {
+                        periodEnd: new Date(currentEndTime).toLocaleString(),
+                        winners: winners,
+                        timestamp: Date.now()
+                    });
+                }
                 
-                <div class="help-tooltip">
-                    Управление: колесо мыши - масштаб, ПКМ - контекстное меню
-                </div>
-
-                <div class="auto-save-indicator" id="auto-save-indicator">
-                    Автосохранение...
-                </div>
-            </div>
-        </div>
-    </div>
+                // Очищаем активные ставки
+                const batch = writeBatch(db);
+                const bidsSnapshot = await getDocs(collection(db, "activeBids"));
+                bidsSnapshot.forEach((doc) => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+                
+                // Устанавливаем новое время окончания
+                await setDoc(doc(db, "settings", "auction"), { endTime: Date.now() + AUCTION_DURATION_MS });
+            }
+        } catch (error) {
+            console.error("Ошибка при финализации аукциона:", error);
+        } finally {
+            isProcessingRollover = false;
+        }
+    }
     
-    <div class="context-menu" id="context-menu">
-        <button id="context-create-planet">Создать планету здесь</button>
-        <button id="context-create-ship">Создать корабль здесь</button>
-        <button id="context-center-view">Центрировать вид</button>
-        <button id="context-reset-zoom">Сбросить масштаб</button>
-    </div>
+    // Рендер функций
+    async function renderLeaderboard() {
+        const tbody = document.getElementById("leaderboardBody");
+        if (!tbody) return;
+        
+        const bids = await loadBids();
+        tbody.innerHTML = "";
+        
+        if (bids.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#8b9ab0;">Нет ставок · сделайте первую</td></tr>';
+        } else {
+            const displayBids = bids.slice(0, 12);
+            for (let i = 0; i < displayBids.length; i++) {
+                const bid = displayBids[i];
+                const place = i + 1;
+                let medal = "";
+                let rowClass = "";
+                if (place === 1) { medal = "🥇"; rowClass = "rank-1"; }
+                else if (place === 2) { medal = "🥈"; rowClass = "rank-2"; }
+                else if (place === 3) { medal = "🥉"; rowClass = "rank-3"; }
+                else medal = `${place}`;
+                
+                const row = tbody.insertRow();
+                row.className = rowClass;
+                row.insertCell(0).innerHTML = medal;
+                row.insertCell(1).textContent = bid.nick;
+                row.insertCell(2).textContent = `${bid.amount} `;
+            }
+            
+            if (bids.length > 12) {
+                const row = tbody.insertRow();
+                const cell = row.insertCell(0);
+                cell.colSpan = 3;
+                cell.textContent = `... и ещё ${bids.length - 12} участников`;
+                cell.style.padding = "8px";
+                cell.style.color = "#6c7f9c";
+            }
+        }
+        
+        document.getElementById("bidCountInfo").innerHTML = `📊 Всего участников: ${bids.length} | топ-3 войдут в отряд`;
+    }
     
-    <div class="modal" id="edit-ship-modal">
-        <div class="modal-content">
-            <span class="close" id="close-edit-ship-modal">&times;</span>
-            <div class="modal-title">РЕДАКТИРОВАНИЕ КОРАБЛЯ</div>
-            
-            <div class="form-group">
-                <label for="edit-ship-name">Название корабля</label>
-                <input type="text" id="edit-ship-name">
-            </div>
-            
-            <div class="form-group">
-                <label for="edit-ship-owner">Владелец</label>
-                <input type="text" id="edit-ship-owner" placeholder="Введите имя владельца">
-            </div>
-            
-            <div class="form-group">
-                <label for="edit-ship-description">Описание</label>
-                <textarea id="edit-ship-description" rows="4" placeholder="Введите описание корабля"></textarea>
-            </div>
-            
-            <div class="form-group">
-                <label for="edit-ship-health">Здоровье (0-100)</label>
-                <input type="number" id="edit-ship-health" min="0" max="100" value="100">
-            </div>
-            
-            <button id="save-ship-details" style="width: 100%; margin-top: 1rem;">Сохранить изменения</button>
-        </div>
-    </div>
-    
-    <div class="notification" id="notification"></div>
-    
-    <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyCQXpQcW3aEKyQejbby8Z4mBbxCyQuDgWA",
-            authDomain: "mkmap52.firebaseapp.com",
-            databaseURL: "https://mkmap52-default-rtdb.firebaseio.com",
-            projectId: "mkmap52",
-            storageBucket: "mkmap52.firebasestorage.app",
-            messagingSenderId: "1074843521487",
-            appId: "1:1074843521487:web:42ec461673aea62ea2c2ba"
-        };
-
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-
-        let planets = [];
-        let ships = [];
-        let selectedPlanet = null;
-        let selectedShip = null;
-        let mapScale = 1;
-        let mapOffset = { x: 0, y: 0 };
-        let isDragging = false;
-        let dragStart = { x: 0, y: 0 };
-        let isMapDragging = false;
-        let mapDragStart = { x: 0, y: 0 };
-        let shipTravelTimers = {};
-        let contextMenu = null;
-        let currentTab = 'system';
-        let autoSaveInterval = null;
-        let isSaving = false;
-        let autoSaveEnabled = true;
-
-        document.addEventListener('DOMContentLoaded', function() {
-            initializeApp();
-            setupEventListeners();
-            setupAutoSave();
+    async function renderHistory() {
+        const historyDiv = document.getElementById("historyList");
+        if (!historyDiv) return;
+        
+        const history = await loadHistory();
+        if (history.length === 0) {
+            historyDiv.innerHTML = '<div style="color:#8a99b0;">📭 Завершённых аукционов пока нет</div>';
+            return;
+        }
+        
+        historyDiv.innerHTML = "";
+        history.forEach(auction => {
+            const winnersText = auction.winners.map(w => `${w.place}. ${w.nick} (${w.amount})`).join(' · ');
+            const div = document.createElement("div");
+            div.className = "history-item";
+            div.innerHTML = `<strong>📅 ${auction.periodEnd}</strong><br>🏆 Победители: ${winnersText}`;
+            historyDiv.appendChild(div);
         });
-
-        function setupAutoSave() {
-            if (autoSaveInterval) {
-                clearInterval(autoSaveInterval);
-            }
-            
-            if (autoSaveEnabled) {
-                autoSaveInterval = setInterval(() => {
-                    if (!isSaving) {
-                        autoSaveToFirebase();
-                    }
-                }, 30000);
-
-                document.getElementById('toggle-auto-save').textContent = 'Автосохранение: ВКЛ';
-                document.getElementById('toggle-auto-save').classList.remove('disabled');
-            } else {
-                document.getElementById('toggle-auto-save').textContent = 'Автосохранение: ВЫКЛ';
-                document.getElementById('toggle-auto-save').classList.add('disabled');
-            }
+    }
+    
+    async function updateTimerDisplay() {
+        const timerElem = document.getElementById("countdownDisplay");
+        if (!timerElem) return;
+        
+        const endTime = await loadAuctionEndTime();
+        const now = Date.now();
+        let remaining = endTime - now;
+        
+        if (remaining <= 0) {
+            timerElem.innerText = "АУКЦИОН ЗАВЕРШЁН";
+            await finalizeAuction();
+            await renderAll();
+            return;
         }
-
-        function autoSaveToFirebase() {
-            if (isSaving || !autoSaveEnabled) return;
-            
-            isSaving = true;
-            const data = {
-                planets: planets,
-                ships: ships,
-                lastUpdated: Date.now(),
-                autoSave: true
-            };
-            
-            const indicator = document.getElementById('auto-save-indicator');
-            indicator.style.display = 'block';
-            
-            database.ref('universeMap').set(data)
-                .then(() => {
-                    console.log('Автосохранение выполнено успешно');
-                    setTimeout(() => {
-                        indicator.style.display = 'none';
-                    }, 1000);
-                })
-                .catch((error) => {
-                    console.error('Ошибка автосохранения в Firebase:', error);
-                    indicator.style.display = 'none';
-                })
-                .finally(() => {
-                    isSaving = false;
-                });
+        
+        const days = Math.floor(remaining / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((remaining % (86400000)) / (3600000));
+        const minutes = Math.floor((remaining % 3600000) / 60000);
+        const seconds = Math.floor((remaining % 60000) / 1000);
+        timerElem.innerText = `${days}д ${hours}ч ${minutes}м ${seconds}с`;
+    }
+    
+    async function updateSessionStatus() {
+        const statusDiv = document.getElementById("sessionStatus");
+        if (statusDiv) {
+            const endTime = await loadAuctionEndTime();
+            const endDate = new Date(endTime);
+            statusDiv.innerHTML = `🩺 Следующий отряд: ${endDate.toLocaleDateString()} ${endDate.toLocaleTimeString().slice(0,5)}`;
         }
-
-        function initializeApp() {
-            contextMenu = document.getElementById('context-menu');
-            loadFromFirebase();
-            showTab('system');
-        }
-
-        function createInitialPlanets() {
-            planets = [
-                {
-                    id: 1,
-                    name: "Терра",
-                    description: "Родная планета человечества, центр галактической империи.",
-                    x: 400,
-                    y: 300,
-                    size: 50,
-                    color: "#4a86e8"
-                },
-                {
-                    id: 2,
-                    name: "Марс",
-                    description: "Красная планета, колонизирована в 22 веке. Крупный промышленный центр.",
-                    x: 600,
-                    y: 200,
-                    size: 40,
-                    color: "#cc4125"
-                },
-                {
-                    id: 3,
-                    name: "Центавра Прайм",
-                    description: "Первая колония за пределами Солнечной системы. Богата ресурсами.",
-                    x: 300,
-                    y: 500,
-                    size: 45,
-                    color: "#6aa84f"
-                },
-                {
-                    id: 4,
-                    name: "Новая Венера",
-                    description: "Терраформированная планета с тропическим климатом. Курортный мир.",
-                    x: 700,
-                    y: 400,
-                    size: 42,
-                    color: "#e69138"
-                },
-                {
-                    id: 5,
-                    name: "Титан-6",
-                    description: "Ледяной мир с подповерхностным океаном. Научная база.",
-                    x: 200,
-                    y: 350,
-                    size: 35,
-                    color: "#a64d79"
-                },
-                {
-                    id: 6,
-                    name: "Кибертрон",
-                    description: "Планета-крепость с развитой оборонной промышленностью.",
-                    x: 500,
-                    y: 600,
-                    size: 48,
-                    color: "#666666"
-                }
-            ];
-            
-            renderPlanets();
-        }
-
-        function createInitialShips() {
-            ships = [
-                {
-                    id: 1,
-                    name: "Искатель-1",
-                    type: "shuttle",
-                    location: 1,
-                    x: 400,
-                    y: 300,
-                    owner: "Галактическая Федерация",
-                    description: "Многоцелевой исследовательский шаттл. Оснащен современным сканирующим оборудованием.",
-                    health: 100,
-                    status: "docked"
-                },
-                {
-                    id: 2,
-                    name: "Молот",
-                    type: "corvette",
-                    location: 2,
-                    x: 600,
-                    y: 200,
-                    owner: "Корпорация 'Орион'",
-                    description: "Быстрый патрульный корабль. Идеален для перехвата контрабандистов.",
-                    health: 85,
-                    status: "docked"
-                },
-                {
-                    id: 3,
-                    name: "Непобедимый",
-                    type: "frigate",
-                    location: 3,
-                    x: 300,
-                    y: 500,
-                    owner: "Военный флот Федерации",
-                    description: "Универсальный фрегат с мощным вооружением. Участвовал в 15 боевых операциях.",
-                    health: 100,
-                    status: "docked"
-                },
-                {
-                    id: 4,
-                    name: "Буревестник",
-                    type: "light-cruiser",
-                    location: 4,
-                    x: 700,
-                    y: 400,
-                    owner: "Исследовательский корпус",
-                    description: "Крейсер дальнего радиуса действия. Совершил 7 экспедиций в неизведанные сектора.",
-                    health: 75,
-                    status: "docked"
-                },
-                {
-                    id: 5,
-                    name: "Грозный",
-                    type: "cruiser",
-                    location: 5,
-                    x: 200,
-                    y: 350,
-                    owner: "Военный флот Федерации",
-                    description: "Тяжелый крейсер класса 'Громовержец'. Главный корабль 7-го флота.",
-                    health: 90,
-                    status: "docked"
-                },
-                {
-                    id: 6,
-                    name: "Аннигилятор",
-                    type: "assault",
-                    location: 6,
-                    x: 500,
-                    y: 600,
-                    owner: "Ударные силы Федерации",
-                    description: "Специализированный ударный корабль. Оснащен экспериментальным оружием.",
-                    health: 100,
-                    status: "docked"
-                },
-                {
-                    id: 7,
-                    name: "Император",
-                    type: "destroyer",
-                    location: 1,
-                    x: 400,
-                    y: 300,
-                    owner: "Флагманский флот",
-                    description: "Звёздный разрушитель класса 'Император'. Крупнейший корабль в этом секторе.",
-                    health: 100,
-                    status: "docked"
-                }
-            ];
-            
-            renderShips();
-        }
-
-        function initializeDefaultData() {
-            if (planets.length === 0 && ships.length === 0) {
-                createInitialPlanets();
-                createInitialShips();
-                // Автоматически сохраняем начальные данные при первом запуске
-                setTimeout(() => {
-                    saveToFirebase();
-                    showNotification('Созданы и сохранены начальные данные', 'info');
-                }, 2000);
-            }
-        }
-
-        function renderPlanets() {
-            const map = document.getElementById('map');
-            const existingPlanets = map.querySelectorAll('.planet');
-            existingPlanets.forEach(planet => planet.remove());
-            
-            planets.forEach(planet => {
-                const planetElement = document.createElement('div');
-                planetElement.className = 'planet';
-                planetElement.id = `planet-${planet.id}`;
-                planetElement.style.width = `${planet.size}px`;
-                planetElement.style.height = `${planet.size}px`;
-                planetElement.style.left = `${planet.x - planet.size/2}px`;
-                planetElement.style.top = `${planet.y - planet.size/2}px`;
-                planetElement.style.backgroundColor = planet.color;
-                planetElement.style.boxShadow = `0 0 20px ${planet.color}`;
-                
-                const label = document.createElement('div');
-                label.className = 'planet-label';
-                label.textContent = planet.name;
-                
-                planetElement.appendChild(label);
-                map.appendChild(planetElement);
-                
-                planetElement.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    selectPlanet(planet.id);
-                });
-                
-                planetElement.addEventListener('contextmenu', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    showContextMenu(e.pageX, e.pageY, { type: 'map', x: planet.x, y: planet.y });
-                });
-                
-                makePlanetDraggable(planetElement, planet);
-            });
-        }
-
-        function renderShips() {
-            const map = document.getElementById('map');
-            const existingShips = map.querySelectorAll('.ship');
-            existingShips.forEach(ship => ship.remove());
-            
-            const existingRoutes = map.querySelectorAll('.route');
-            existingRoutes.forEach(route => route.remove());
-            
-            ships.forEach(ship => {
-                if (ship.status === 'traveling' && ship.destination) {
-                    drawRoute(ship);
-                }
-                
-                const shipElement = document.createElement('div');
-                shipElement.className = `ship ${ship.type}`;
-                shipElement.id = `ship-${ship.id}`;
-                
-                if (ship.status === 'docked') {
-                    const planet = planets.find(p => p.id === ship.location);
-                    if (planet) {
-                        if (!ship.x || !ship.y) {
-                            const angle = Math.random() * Math.PI * 2;
-                            const distance = planet.size / 2 + 30;
-                            ship.x = planet.x + Math.cos(angle) * distance;
-                            ship.y = planet.y + Math.sin(angle) * distance;
-                        }
-                    }
-                }
-                
-                shipElement.style.left = `${ship.x - 10}px`;
-                shipElement.style.top = `${ship.y - 10}px`;
-                
-                if (ship.status === 'traveling') {
-                    shipElement.classList.add('moving');
-                }
-                if (ship.health < 30) {
-                    shipElement.classList.add('damaged');
-                }
-                if (ship.health <= 0) {
-                    shipElement.classList.add('destroyed');
-                }
-                
-                map.appendChild(shipElement);
-                
-                shipElement.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    selectShip(ship.id);
-                });
-                
-                shipElement.addEventListener('contextmenu', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    showContextMenu(e.pageX, e.pageY, { type: 'ship', id: ship.id });
-                });
-            });
-        }
-
-        function drawRoute(ship) {
-            const map = document.getElementById('map');
-            const routeElement = document.createElement('div');
-            routeElement.className = 'route';
-            routeElement.id = `route-${ship.id}`;
-            
-            const startPlanet = planets.find(p => p.id === ship.location);
-            const endPlanet = planets.find(p => p.id === ship.destination);
-            
-            if (startPlanet && endPlanet) {
-                const dx = endPlanet.x - startPlanet.x;
-                const dy = endPlanet.y - startPlanet.y;
-                const length = Math.sqrt(dx * dx + dy * dy);
-                const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-                
-                routeElement.style.width = `${length}px`;
-                routeElement.style.left = `${startPlanet.x}px`;
-                routeElement.style.top = `${startPlanet.y}px`;
-                routeElement.style.transform = `rotate(${angle}deg)`;
-                
-                map.appendChild(routeElement);
-            }
-        }
-
-        function makePlanetDraggable(planetElement, planet) {
-            let isDragging = false;
-            let startX, startY, initialX, initialY;
-            
-            planetElement.addEventListener('mousedown', (e) => {
-                if (e.button !== 0) return;
-                
-                isDragging = true;
-                startX = e.clientX;
-                startY = e.clientY;
-                initialX = planet.x;
-                initialY = planet.y;
-                
-                planetElement.classList.add('dragging');
-                document.body.style.cursor = 'grabbing';
-                
-                e.preventDefault();
-                e.stopPropagation();
-            });
-            
-            document.addEventListener('mousemove', (e) => {
-                if (!isDragging) return;
-                
-                const dx = e.clientX - startX;
-                const dy = e.clientY - startY;
-                
-                planet.x = initialX + dx / mapScale;
-                planet.y = initialY + dy / mapScale;
-                
-                planetElement.style.left = `${planet.x - planet.size/2}px`;
-                planetElement.style.top = `${planet.y - planet.size/2}px`;
-                
-                updateShipsPositions(planet.id);
-                
-                e.preventDefault();
-            });
-            
-            document.addEventListener('mouseup', (e) => {
-                if (!isDragging) return;
-                
-                isDragging = false;
-                planetElement.classList.remove('dragging');
-                document.body.style.cursor = '';
-                
-                saveToFirebase();
-                
-                e.preventDefault();
-            });
-        }
-
-        function updateShipsPositions(planetId) {
-            const planet = planets.find(p => p.id === planetId);
-            if (!planet) return;
-            
-            ships.forEach(ship => {
-                if (ship.location === planetId && ship.status === 'docked') {
-                    const shipElement = document.getElementById(`ship-${ship.id}`);
-                    if (shipElement) {
-                        const angle = Math.atan2(ship.y - planet.y, ship.x - planet.x);
-                        const distance = planet.size / 2 + 30;
-                        ship.x = planet.x + Math.cos(angle) * distance;
-                        ship.y = planet.y + Math.sin(angle) * distance;
-                        
-                        shipElement.style.left = `${ship.x - 10}px`;
-                        shipElement.style.top = `${ship.y - 10}px`;
-                    }
-                }
-            });
-        }
-
-        function selectPlanet(planetId) {
-            if (selectedShip) {
-                const prevShipElement = document.getElementById(`ship-${selectedShip}`);
-                if (prevShipElement) {
-                    prevShipElement.classList.remove('selected');
-                }
-                selectedShip = null;
-                hideShipControls();
-            }
-            
-            if (selectedPlanet) {
-                const prevPlanetElement = document.getElementById(`planet-${selectedPlanet}`);
-                if (prevPlanetElement) {
-                    prevPlanetElement.classList.remove('selected');
-                }
-            }
-            
-            selectedPlanet = planetId;
-            const planetElement = document.getElementById(`planet-${planetId}`);
-            if (planetElement) {
-                planetElement.classList.add('selected');
-            }
-            
-            updatePlanetInfo(planetId);
-            showTab('system');
-        }
-
-        function selectShip(shipId) {
-            if (selectedPlanet) {
-                const prevPlanetElement = document.getElementById(`planet-${selectedPlanet}`);
-                if (prevPlanetElement) {
-                    prevPlanetElement.classList.remove('selected');
-                }
-                selectedPlanet = null;
-                hidePlanetInfo();
-            }
-            
-            if (selectedShip) {
-                const prevShipElement = document.getElementById(`ship-${selectedShip}`);
-                if (prevShipElement) {
-                    prevShipElement.classList.remove('selected');
-                }
-            }
-            
-            selectedShip = shipId;
-            const shipElement = document.getElementById(`ship-${shipId}`);
-            if (shipElement) {
-                shipElement.classList.add('selected');
-            }
-            
-            updateShipInfo(shipId);
-            showTab('system');
-        }
-
-        function updatePlanetInfo(planetId) {
-            const planet = planets.find(p => p.id === planetId);
-            if (!planet) return;
-            
-            document.getElementById('selected-planet-name').textContent = planet.name;
-            document.getElementById('selected-planet-desc').textContent = planet.description;
-            document.getElementById('planet-coords').textContent = `Координаты: ${Math.round(planet.x)}, ${Math.round(planet.y)}`;
-            updatePlanetFleetList(planetId);
-            document.querySelector('.planet-info').style.display = 'block';
-        }
-
-        function hidePlanetInfo() {
-            document.getElementById('selected-planet-name').textContent = 'Выберите планету';
-            document.getElementById('selected-planet-desc').textContent = 'Нажмите на планету на карте для просмотра информации';
-            document.getElementById('planet-coords').textContent = '';
-            document.querySelector('.planet-info').style.display = 'block';
-            document.getElementById('planet-fleet-list').innerHTML = '<div class="fleet-item">Нет кораблей</div>';
-        }
-
-        function updatePlanetFleetList(planetId) {
-            const fleetList = document.getElementById('planet-fleet-list');
-            const planetShips = ships.filter(ship => ship.location === planetId && ship.status === 'docked');
-            
-            if (planetShips.length === 0) {
-                fleetList.innerHTML = '<div class="fleet-item">Нет кораблей</div>';
-                return;
-            }
-            
-            fleetList.innerHTML = '';
-            planetShips.forEach(ship => {
-                const shipItem = document.createElement('div');
-                shipItem.className = 'fleet-item';
-                
-                const typeClass = `ship-type-indicator ${ship.type}`;
-                
-                shipItem.innerHTML = `
-                    <div>
-                        <span class="${typeClass}"></span>
-                        ${ship.name}
-                    </div>
-                    <div>${getShipTypeName(ship.type)}</div>
-                `;
-                
-                shipItem.addEventListener('click', () => {
-                    selectShip(ship.id);
-                });
-                
-                fleetList.appendChild(shipItem);
-            });
-        }
-
-        function updateShipInfo(shipId) {
-            const ship = ships.find(s => s.id === shipId);
-            if (!ship) return;
-            
-            document.getElementById('selected-ship-name').textContent = ship.name;
-            document.getElementById('selected-ship-info').textContent = `${getShipTypeName(ship.type)} - ${getStatusName(ship.status)}`;
-            document.getElementById('ship-info-extended').style.display = 'block';
-            document.getElementById('ship-owner').textContent = ship.owner || 'Не указан';
-            document.getElementById('ship-description-text').textContent = ship.description || 'Описание корабля не добавлено';
-            document.getElementById('ship-stat-type').textContent = getShipTypeName(ship.type);
-            document.getElementById('ship-stat-status').textContent = getStatusName(ship.status);
-            document.getElementById('ship-stat-health').textContent = `${ship.health}%`;
-            document.getElementById('ship-health-bar').style.width = `${ship.health}%`;
-            
-            const successBonus = calculateSuccessBonus(ship);
-            document.getElementById('ship-stat-bonus').textContent = `+${successBonus}%`;
-            
-            const locationPlanet = planets.find(p => p.id === ship.location);
-            document.getElementById('ship-stat-location').textContent = locationPlanet ? locationPlanet.name : 'Неизвестно';
-            document.getElementById('ship-stat-speed').textContent = getShipSpeed(ship.type);
-            
-            if (ship.health > 0) {
-                document.getElementById('success-chance').style.display = 'block';
-                const baseChance = 60;
-                const totalChance = baseChance + successBonus;
-                const chanceElement = document.getElementById('chance-value');
-                chanceElement.textContent = `${totalChance}%`;
-                
-                if (totalChance >= 80) {
-                    chanceElement.className = 'chance-value chance-good';
-                } else if (totalChance >= 60) {
-                    chanceElement.className = 'chance-value chance-medium';
+    }
+    
+    let messageTimeout;
+    function updateMessage(msg, type = "info") {
+        const msgDiv = document.getElementById("infoMessage");
+        if (!msgDiv) return;
+        msgDiv.innerHTML = msg;
+        msgDiv.style.borderLeftColor = "#c22a2a";
+        if (messageTimeout) clearTimeout(messageTimeout);
+        messageTimeout = setTimeout(() => {
+            if (msgDiv) msgDiv.innerHTML = "💡 Чтобы занять место в отряде, ваша ставка должна войти в топ-3. Если вытеснят — перебивайте.";
+        }, 3500);
+    }
+    
+    async function renderAll() {
+        await renderLeaderboard();
+        await renderHistory();
+        await updateSessionStatus();
+        await updateTimerDisplay();
+    }
+    
+    function bindEvents() {
+        const btn = document.getElementById("placeBidBtn");
+        if (btn) {
+            btn.addEventListener("click", async () => {
+                const nick = document.getElementById("nicknameInput").value;
+                const amountRaw = document.getElementById("bidAmountInput").value;
+                const amount = parseInt(amountRaw, 10);
+                const result = await placeBid(nick, amount);
+                if (!result.success) {
+                    updateMessage(result.message, "error");
                 } else {
-                    chanceElement.className = 'chance-value chance-low';
+                    document.getElementById("bidAmountInput").value = '';
+                    updateMessage(`✓ Ставка ${nick} — ${amount} принята`, "success");
                 }
-            } else {
-                document.getElementById('success-chance').style.display = 'none';
-            }
-            
-            if (ship.imageUrl) {
-                document.getElementById('ship-image').src = ship.imageUrl;
-                document.getElementById('ship-image').style.display = 'block';
-                document.getElementById('ship-image-placeholder').style.display = 'none';
-            } else {
-                document.getElementById('ship-image').style.display = 'none';
-                document.getElementById('ship-image-placeholder').style.display = 'flex';
-            }
-            
-            if (ship.status === 'docked' && ship.health > 0) {
-                document.getElementById('destination-controls').style.display = 'block';
-                updateDestinationSelect(shipId);
-            } else {
-                document.getElementById('destination-controls').style.display = 'none';
-            }
-            
-            if (ship.status === 'traveling') {
-                document.getElementById('travel-time-controls').style.display = 'block';
-                updateTravelProgress(shipId);
-            } else {
-                document.getElementById('travel-time-controls').style.display = 'none';
-            }
-        }
-
-        function hideShipControls() {
-            document.getElementById('selected-ship-name').textContent = 'Корабль не выбран';
-            document.getElementById('selected-ship-info').textContent = 'Нажмите на корабль на карте для выбора';
-            document.getElementById('ship-info-extended').style.display = 'none';
-            document.getElementById('destination-controls').style.display = 'none';
-            document.getElementById('travel-time-controls').style.display = 'none';
-            document.getElementById('success-chance').style.display = 'none';
-        }
-
-        function calculateSuccessBonus(ship) {
-            let bonus = 0;
-            switch(ship.type) {
-                case 'shuttle': bonus = 5; break;
-                case 'corvette': bonus = 10; break;
-                case 'frigate': bonus = 15; break;
-                case 'light-cruiser': bonus = 20; break;
-                case 'cruiser': bonus = 25; break;
-                case 'assault': bonus = 30; break;
-                case 'destroyer': bonus = 35; break;
-            }
-            
-            const healthModifier = ship.health / 100;
-            bonus = Math.round(bonus * healthModifier);
-            
-            return bonus;
-        }
-
-        function getShipSpeed(shipType) {
-            switch(shipType) {
-                case 'shuttle': return 'Высокая';
-                case 'corvette': return 'Очень высокая';
-                case 'frigate': return 'Средняя';
-                case 'light-cruiser': return 'Средняя';
-                case 'cruiser': return 'Низкая';
-                case 'assault': return 'Высокая';
-                case 'destroyer': return 'Очень низкая';
-                default: return 'Неизвестно';
-            }
-        }
-
-        function getShipTypeName(shipType) {
-            switch(shipType) {
-                case 'shuttle': return 'Шаттл';
-                case 'corvette': return 'Корвет';
-                case 'frigate': return 'Фрегат';
-                case 'light-cruiser': return 'Лёгкий крейсер';
-                case 'cruiser': return 'Крейсер';
-                case 'assault': return 'Ударный корабль';
-                case 'destroyer': return 'Звёздный разрушитель';
-                default: return 'Неизвестный тип';
-            }
-        }
-
-        function getStatusName(status) {
-            switch(status) {
-                case 'docked': return 'Пристыкован';
-                case 'traveling': return 'В пути';
-                case 'destroyed': return 'Уничтожен';
-                default: return 'Неизвестно';
-            }
-        }
-
-        function updateDestinationSelect(shipId) {
-            const ship = ships.find(s => s.id === shipId);
-            if (!ship) return;
-            
-            const select = document.getElementById('destination-select');
-            select.innerHTML = '<option value="">Выберите пункт назначения</option>';
-            
-            planets.forEach(planet => {
-                if (planet.id !== ship.location) {
-                    const option = document.createElement('option');
-                    option.value = planet.id;
-                    option.textContent = planet.name;
-                    select.appendChild(option);
-                }
+                await renderAll();
             });
         }
-
-        function updateTravelProgress(shipId) {
-            const ship = ships.find(s => s.id === shipId);
-            if (!ship || !ship.travelStart || !ship.travelEnd) return;
-            
-            const now = Date.now();
-            const totalTime = ship.travelEnd - ship.travelStart;
-            const elapsed = now - ship.travelStart;
-            const progress = Math.min(100, (elapsed / totalTime) * 100);
-            
-            document.getElementById('ship-progress-bar').style.width = `${progress}%`;
-            
-            if (ship.destination) {
-                const destinationPlanet = planets.find(p => p.id === ship.destination);
-                if (destinationPlanet) {
-                    const remaining = Math.max(0, ship.travelEnd - now);
-                    const seconds = Math.floor(remaining / 1000);
-                    const minutes = Math.floor(seconds / 60);
-                    const hours = Math.floor(minutes / 60);
-                    
-                    const timeStr = `${hours > 0 ? hours + 'ч ' : ''}${minutes % 60}м ${seconds % 60}с`;
-                    document.getElementById('travel-info').textContent = 
-                        `Направление: ${destinationPlanet.name}. Прибытие через: ${timeStr}`;
-                }
-            }
-            
-            if (progress >= 100) {
-                completeTravel(shipId);
-            }
-        }
-
-        function sendShip(shipId, destinationId) {
-            const ship = ships.find(s => s.id === shipId);
-            if (!ship || ship.status !== 'docked') return;
-            
-            ship.status = 'traveling';
-            ship.destination = destinationId;
-            
-            const hours = parseInt(document.getElementById('travel-hours').value) || 0;
-            const minutes = parseInt(document.getElementById('travel-minutes').value) || 1;
-            const seconds = parseInt(document.getElementById('travel-seconds').value) || 0;
-            
-            const travelTime = (hours * 3600 + minutes * 60 + seconds) * 1000;
-            
-            ship.travelStart = Date.now();
-            ship.travelEnd = ship.travelStart + travelTime;
-            
-            updateShipInfo(shipId);
-            renderShips();
-            
-            shipTravelTimers[shipId] = setInterval(() => {
-                updateTravelProgress(shipId);
-            }, 1000);
-            
-            const destinationPlanet = planets.find(p => p.id === destinationId);
-            addEvent(`Корабль "${ship.name}" отправлен на планету ${destinationPlanet ? destinationPlanet.name : 'Неизвестно'}`, 'info');
-            
-            saveToFirebase();
-        }
-
-        function completeTravel(shipId) {
-            const ship = ships.find(s => s.id === shipId);
-            if (!ship || ship.status !== 'traveling') return;
-            
-            if (shipTravelTimers[shipId]) {
-                clearInterval(shipTravelTimers[shipId]);
-                delete shipTravelTimers[shipId];
-            }
-            
-            const oldLocation = ship.location;
-            ship.location = ship.destination;
-            ship.status = 'docked';
-            ship.destination = null;
-            ship.travelStart = null;
-            ship.travelEnd = null;
-            
-            const planet = planets.find(p => p.id === ship.location);
-            if (planet) {
-                const angle = Math.random() * Math.PI * 2;
-                const distance = planet.size / 2 + 30;
-                ship.x = planet.x + Math.cos(angle) * distance;
-                ship.y = planet.y + Math.sin(angle) * distance;
-            }
-            
-            updateShipInfo(shipId);
-            renderShips();
-            
-            const planetName = planet ? planet.name : 'Неизвестно';
-            addEvent(`Корабль "${ship.name}" прибыл на планету ${planetName}`, 'success');
-            
-            saveToFirebase();
-        }
-
-        function showTab(tabName) {
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            document.querySelectorAll('.quick-action-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            
-            document.getElementById(`${tabName}-tab`).classList.add('active');
-            document.querySelector(`.quick-action-btn[data-tab="${tabName}"]`).classList.add('active');
-            
-            currentTab = tabName;
-        }
-
-        function updatePlanetsList() {
-            const planetsList = document.getElementById('planets-list');
-            planetsList.innerHTML = '';
-            
-            planets.forEach(planet => {
-                const planetItem = document.createElement('div');
-                planetItem.className = 'planet-info';
-                
-                const shipsCount = ships.filter(ship => ship.location === planet.id).length;
-                
-                planetItem.innerHTML = `
-                    <div class="planet-name">${planet.name}</div>
-                    <div>${planet.description}</div>
-                    <div class="planet-coords">Координаты: ${Math.round(planet.x)}, ${Math.round(planet.y)}</div>
-                    <div style="margin-top: 0.5rem; color: #888;">Кораблей на орбите: ${shipsCount}</div>
-                    <button class="edit-planet-btn" data-planet-id="${planet.id}" style="margin-top: 0.5rem; width: 100%;">Редактировать</button>
-                `;
-                
-                planetsList.appendChild(planetItem);
-            });
-        }
-
-        function updateShipsList() {
-            const shipsList = document.getElementById('ships-list');
-            shipsList.innerHTML = '';
-            
-            ships.forEach(ship => {
-                const shipItem = document.createElement('div');
-                shipItem.className = 'fleet-item';
-                
-                const typeClass = `ship-type-indicator ${ship.type}`;
-                const locationPlanet = planets.find(p => p.id === ship.location);
-                const locationName = locationPlanet ? locationPlanet.name : 'Неизвестно';
-                
-                shipItem.innerHTML = `
-                    <div>
-                        <span class="${typeClass}"></span>
-                        ${ship.name}
-                    </div>
-                    <div>${getShipTypeName(ship.type)}</div>
-                    <div>${locationName}</div>
-                    <div>${getStatusName(ship.status)}</div>
-                `;
-                
-                shipItem.addEventListener('click', () => {
-                    selectShip(ship.id);
-                    centerOnObject(ship.x, ship.y);
-                });
-                
-                shipsList.appendChild(shipItem);
-            });
-        }
-
-        function updateLocationSelects() {
-            const shipLocationSelect = document.getElementById('new-ship-location');
-            shipLocationSelect.innerHTML = '<option value="">Выберите планету</option>';
-            
-            planets.forEach(planet => {
-                const option = document.createElement('option');
-                option.value = planet.id;
-                option.textContent = planet.name;
-                shipLocationSelect.appendChild(option);
-            });
-        }
-
-        function createPlanet(name, description, color, size, x, y) {
-            const newId = planets.length > 0 ? Math.max(...planets.map(p => p.id)) + 1 : 1;
-            
-            const newPlanet = {
-                id: newId,
-                name: name,
-                description: description,
-                color: color,
-                size: size,
-                x: x || Math.random() * 700 + 100,
-                y: y || Math.random() * 500 + 100
-            };
-            
-            planets.push(newPlanet);
-            renderPlanets();
-            updatePlanetsList();
-            updateLocationSelects();
-            
-            addEvent(`Создана новая планета: ${name}`, 'success');
-            saveToFirebase();
-            
-            return newPlanet;
-        }
-
-        function createShip(name, type, location) {
-            const newId = ships.length > 0 ? Math.max(...ships.map(s => s.id)) + 1 : 1;
-            
-            const planet = planets.find(p => p.id === parseInt(location));
-            if (!planet) {
-                showNotification('Выберите планету для размещения корабля', 'warning');
-                return;
-            }
-            
-            const angle = Math.random() * Math.PI * 2;
-            const distance = planet.size / 2 + 30;
-            
-            const newShip = {
-                id: newId,
-                name: name,
-                type: type,
-                location: parseInt(location),
-                x: planet.x + Math.cos(angle) * distance,
-                y: planet.y + Math.sin(angle) * distance,
-                owner: 'Не указан',
-                description: 'Описание корабля не добавлено',
-                health: 100,
-                status: 'docked'
-            };
-            
-            ships.push(newShip);
-            renderShips();
-            updateShipsList();
-            
-            addEvent(`Создан новый корабль: ${name} (${getShipTypeName(type)})`, 'success');
-            saveToFirebase();
-            
-            return newShip;
-        }
-
-        function showContextMenu(x, y, context) {
-            contextMenu.style.left = `${x}px`;
-            contextMenu.style.top = `${y}px`;
-            contextMenu.style.display = 'block';
-            contextMenu.dataset.context = JSON.stringify(context);
-        }
-
-        function hideContextMenu() {
-            contextMenu.style.display = 'none';
-        }
-
-        function centerOnObject(x, y) {
-            const mapContainer = document.querySelector('.map-container');
-            const map = document.getElementById('map');
-            
-            const containerWidth = mapContainer.clientWidth;
-            const containerHeight = mapContainer.clientHeight;
-            
-            mapOffset.x = containerWidth / 2 - x * mapScale;
-            mapOffset.y = containerHeight / 2 - y * mapScale;
-            
-            updateMapTransform();
-        }
-
-        function updateMapTransform() {
-            const map = document.getElementById('map');
-            map.style.transform = `translate(${mapOffset.x}px, ${mapOffset.y}px) scale(${mapScale})`;
-            document.getElementById('zoom-level').textContent = `${Math.round(mapScale * 100)}%`;
-        }
-
-        function addEvent(message, type = 'info') {
-            const eventLog = document.getElementById('event-log');
-            const eventItem = document.createElement('div');
-            eventItem.className = `event-item ${type}`;
-            eventItem.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-            
-            eventLog.appendChild(eventItem);
-            eventLog.scrollTop = eventLog.scrollHeight;
-            
-            const events = eventLog.querySelectorAll('.event-item');
-            if (events.length > 50) {
-                events[0].remove();
-            }
-        }
-
-        function showNotification(message, type = 'info') {
-            const notification = document.getElementById('notification');
-            notification.textContent = message;
-            notification.className = `notification ${type}`;
-            notification.style.display = 'block';
-            
-            setTimeout(() => {
-                notification.style.display = 'none';
-            }, 3000);
-        }
-
-        function setupEventListeners() {
-            const mapContainer = document.querySelector('.map-container');
-            const map = document.getElementById('map');
-            
-            mapContainer.addEventListener('wheel', (e) => {
-                e.preventDefault();
-                
-                const zoomIntensity = 0.1;
-                const wheel = e.deltaY < 0 ? 1 : -1;
-                const zoom = Math.exp(wheel * zoomIntensity);
-                
-                const newScale = Math.max(0.1, Math.min(3, mapScale * zoom));
-                
-                const rect = mapContainer.getBoundingClientRect();
-                const offsetX = e.clientX - rect.left;
-                const offsetY = e.clientY - rect.top;
-                
-                const worldX = (offsetX - mapOffset.x) / mapScale;
-                const worldY = (offsetY - mapOffset.y) / mapScale;
-                
-                mapScale = newScale;
-                
-                mapOffset.x = offsetX - worldX * mapScale;
-                mapOffset.y = offsetY - worldY * mapScale;
-                
-                updateMapTransform();
-            });
-            
-            mapContainer.addEventListener('mousedown', (e) => {
-                if (e.button !== 0) return;
-                
-                isMapDragging = true;
-                mapDragStart.x = e.clientX - mapOffset.x;
-                mapDragStart.y = e.clientY - mapOffset.y;
-                
-                mapContainer.style.cursor = 'grabbing';
-                e.preventDefault();
-            });
-            
-            document.addEventListener('mousemove', (e) => {
-                if (!isMapDragging) return;
-                
-                mapOffset.x = e.clientX - mapDragStart.x;
-                mapOffset.y = e.clientY - mapDragStart.y;
-                
-                updateMapTransform();
-                e.preventDefault();
-            });
-            
-            document.addEventListener('mouseup', (e) => {
-                if (!isMapDragging) return;
-                
-                isMapDragging = false;
-                mapContainer.style.cursor = '';
-                e.preventDefault();
-            });
-            
-            mapContainer.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
-                const rect = mapContainer.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-                
-                const worldX = (x - mapOffset.x) / mapScale;
-                const worldY = (y - mapOffset.y) / mapScale;
-                
-                showContextMenu(e.pageX, e.pageY, { type: 'map', x: worldX, y: worldY });
-            });
-            
-            document.addEventListener('click', (e) => {
-                if (!contextMenu.contains(e.target)) {
-                    hideContextMenu();
-                }
-            });
-            
-            document.getElementById('context-create-planet').addEventListener('click', () => {
-                const context = JSON.parse(contextMenu.dataset.context);
-                if (context.type === 'map') {
-                    document.getElementById('new-planet-name').value = 'Новая планета';
-                    document.getElementById('new-planet-desc').value = 'Описание новой планеты';
-                    document.getElementById('new-planet-color').value = '#4a86e8';
-                    document.getElementById('new-planet-size').value = '40';
-                    
-                    const createBtn = document.getElementById('create-planet-btn');
-                    createBtn.dataset.contextX = context.x;
-                    createBtn.dataset.contextY = context.y;
-                    
-                    showTab('creation');
-                    document.getElementById('creation-tab').scrollTop = 0;
-                }
-                hideContextMenu();
-            });
-            
-            document.getElementById('context-create-ship').addEventListener('click', () => {
-                const context = JSON.parse(contextMenu.dataset.context);
-                if (context.type === 'map') {
-                    const shipName = prompt('Введите название корабля:', 'Новый корабль');
-                    if (shipName) {
-                        const tempPlanet = createPlanet(
-                            `Точка ${shipName}`,
-                            'Временная локация для корабля',
-                            '#666666',
-                            30,
-                            context.x,
-                            context.y
-                        );
-                        
-                        createShip(shipName, 'shuttle', tempPlanet.id);
-                    }
-                }
-                hideContextMenu();
-            });
-            
-            document.getElementById('context-center-view').addEventListener('click', () => {
-                centerOnObject(400, 300);
-                hideContextMenu();
-            });
-            
-            document.getElementById('context-reset-zoom').addEventListener('click', () => {
-                mapScale = 1;
-                mapOffset.x = 0;
-                mapOffset.y = 0;
-                updateMapTransform();
-                hideContextMenu();
-            });
-            
-            document.querySelectorAll('.quick-action-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const tabName = btn.dataset.tab;
-                    showTab(tabName);
-                });
-            });
-            
-            document.getElementById('create-planet-btn').addEventListener('click', () => {
-                const name = document.getElementById('new-planet-name').value;
-                const description = document.getElementById('new-planet-desc').value;
-                const color = document.getElementById('new-planet-color').value;
-                const size = parseInt(document.getElementById('new-planet-size').value);
-                
-                if (!name) {
-                    showNotification('Введите название планеты', 'warning');
-                    return;
-                }
-                
-                let x, y;
-                const createBtn = document.getElementById('create-planet-btn');
-                if (createBtn.dataset.contextX && createBtn.dataset.contextY) {
-                    x = parseFloat(createBtn.dataset.contextX);
-                    y = parseFloat(createBtn.dataset.contextY);
-                    delete createBtn.dataset.contextX;
-                    delete createBtn.dataset.contextY;
-                } else {
-                    const mapContainer = document.querySelector('.map-container');
-                    x = Math.random() * mapContainer.clientWidth;
-                    y = Math.random() * mapContainer.clientHeight;
-                }
-                
-                createPlanet(name, description, color, size, x, y);
-                
-                document.getElementById('new-planet-name').value = '';
-                document.getElementById('new-planet-desc').value = '';
-                document.getElementById('new-planet-color').value = '#4a86e8';
-                document.getElementById('new-planet-size').value = '40';
-            });
-            
-            document.getElementById('create-ship-btn').addEventListener('click', () => {
-                const name = document.getElementById('new-ship-name').value;
-                const type = document.getElementById('new-ship-type').value;
-                const location = document.getElementById('new-ship-location').value;
-                
-                if (!name) {
-                    showNotification('Введите название корабля', 'warning');
-                    return;
-                }
-                
-                if (!location) {
-                    showNotification('Выберите планету для размещения корабля', 'warning');
-                    return;
-                }
-                
-                createShip(name, type, location);
-                
-                document.getElementById('new-ship-name').value = '';
-                document.getElementById('new-ship-type').value = 'shuttle';
-                document.getElementById('new-ship-location').value = '';
-            });
-            
-            document.getElementById('send-ship-btn').addEventListener('click', () => {
-                if (!selectedShip) return;
-                
-                const destinationId = document.getElementById('destination-select').value;
-                if (!destinationId) {
-                    showNotification('Выберите пункт назначения', 'warning');
-                    return;
-                }
-                
-                sendShip(selectedShip, parseInt(destinationId));
-            });
-            
-            document.querySelectorAll('.time-preset').forEach(preset => {
-                preset.addEventListener('click', () => {
-                    const seconds = parseInt(preset.dataset.seconds) || 0;
-                    const minutes = parseInt(preset.dataset.minutes) || 0;
-                    const hours = parseInt(preset.dataset.hours) || 0;
-                    
-                    document.getElementById('travel-hours').value = hours;
-                    document.getElementById('travel-minutes').value = minutes;
-                    document.getElementById('travel-seconds').value = seconds;
-                });
-            });
-            
-            document.getElementById('edit-ship-details').addEventListener('click', () => {
-                if (!selectedShip) return;
-                
-                const ship = ships.find(s => s.id === selectedShip);
-                if (!ship) return;
-                
-                document.getElementById('edit-ship-name').value = ship.name;
-                document.getElementById('edit-ship-owner').value = ship.owner || '';
-                document.getElementById('edit-ship-description').value = ship.description || '';
-                document.getElementById('edit-ship-health').value = ship.health;
-                
-                document.getElementById('edit-ship-modal').style.display = 'flex';
-            });
-            
-            document.getElementById('close-edit-ship-modal').addEventListener('click', () => {
-                document.getElementById('edit-ship-modal').style.display = 'none';
-            });
-            
-            document.getElementById('save-ship-details').addEventListener('click', () => {
-                if (!selectedShip) return;
-                
-                const ship = ships.find(s => s.id === selectedShip);
-                if (!ship) return;
-                
-                ship.name = document.getElementById('edit-ship-name').value;
-                ship.owner = document.getElementById('edit-ship-owner').value;
-                ship.description = document.getElementById('edit-ship-description').value;
-                ship.health = parseInt(document.getElementById('edit-ship-health').value);
-                
-                updateShipInfo(selectedShip);
-                updateShipsList();
-                renderShips();
-                
-                document.getElementById('edit-ship-modal').style.display = 'none';
-                
-                addEvent(`Корабль "${ship.name}" отредактирован`, 'info');
-                saveToFirebase();
-            });
-            
-            document.getElementById('upload-ship-image').addEventListener('click', () => {
-                document.getElementById('ship-image-input').click();
-            });
-            
-            document.getElementById('ship-image-input').addEventListener('change', (e) => {
-                if (!selectedShip) return;
-                
-                const file = e.target.files[0];
-                if (!file) return;
-                
-                if (!file.type.match('image.*')) {
-                    showNotification('Выберите файл изображения', 'warning');
-                    return;
-                }
-                
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    const ship = ships.find(s => s.id === selectedShip);
-                    if (ship) {
-                        ship.imageUrl = event.target.result;
-                        updateShipInfo(selectedShip);
-                        addEvent(`Изображение корабля "${ship.name}" обновлено`, 'info');
-                        saveToFirebase();
-                    }
-                };
-                reader.readAsDataURL(file);
-            });
-            
-            document.getElementById('save-to-firebase').addEventListener('click', () => {
-                saveToFirebase();
-            });
-            
-            document.getElementById('load-from-firebase').addEventListener('click', () => {
-                loadFromFirebase();
-            });
-
-            document.getElementById('toggle-auto-save').addEventListener('click', () => {
-                autoSaveEnabled = !autoSaveEnabled;
-                setupAutoSave();
-                
-                if (autoSaveEnabled) {
-                    showNotification('Автосохранение включено', 'success');
-                    addEvent('Автосохранение включено', 'success');
-                } else {
-                    showNotification('Автосохранение отключено', 'warning');
-                    addEvent('Автосохранение отключено', 'warning');
-                }
-            });
-        }
-
-        function saveToFirebase() {
-            if (isSaving) {
-                showNotification('Идет сохранение, подождите...', 'warning');
-                return;
-            }
-            
-            isSaving = true;
-            const data = {
-                planets: planets,
-                ships: ships,
-                lastUpdated: Date.now()
-            };
-            
-            database.ref('universeMap').set(data)
-                .then(() => {
-                    showNotification('Данные успешно сохранены в Firebase!', 'success');
-                    addEvent('Данные сохранены в облаке', 'success');
-                })
-                .catch((error) => {
-                    console.error('Ошибка сохранения в Firebase:', error);
-                    showNotification('Ошибка сохранения в Firebase: ' + error.message, 'danger');
-                    addEvent('Ошибка сохранения данных в облаке', 'danger');
-                })
-                .finally(() => {
-                    isSaving = false;
-                });
-        }
-
-        function loadFromFirebase() {
-            database.ref('universeMap').once('value')
-                .then((snapshot) => {
-                    const data = snapshot.val();
-                    if (data && data.planets && data.ships) {
-                        planets = data.planets || [];
-                        ships = data.ships || [];
-                        
-                        renderPlanets();
-                        renderShips();
-                        updatePlanetsList();
-                        updateShipsList();
-                        updateLocationSelects();
-                        
-                        showNotification('Данные успешно загружены из Firebase!', 'success');
-                        addEvent('Данные загружены из облака', 'success');
-                        
-                        restoreTravelTimers();
-                        
-                        if (data.lastUpdated) {
-                            const lastSave = new Date(data.lastUpdated).toLocaleString();
-                            addEvent(`Данные загружены (последнее сохранение: ${lastSave})`, 'info');
-                        }
-                    } else {
-                        // Если данных нет, создаем начальные данные и сразу сохраняем их
-                        showNotification('В Firebase нет сохраненных данных. Созданы начальные данные.', 'warning');
-                        initializeDefaultData();
-                    }
-                })
-                .catch((error) => {
-                    console.error('Ошибка загрузки из Firebase:', error);
-                    showNotification('Ошибка загрузки из Firebase: ' + error.message, 'danger');
-                    addEvent('Ошибка загрузки данных из облака', 'danger');
-                    
-                    // При ошибке тоже создаем начальные данные
-                    initializeDefaultData();
-                });
-        }
-
-        function restoreTravelTimers() {
-            Object.values(shipTravelTimers).forEach(timer => clearInterval(timer));
-            shipTravelTimers = {};
-            
-            ships.forEach(ship => {
-                if (ship.status === 'traveling' && ship.travelEnd) {
-                    const now = Date.now();
-                    if (now < ship.travelEnd) {
-                        shipTravelTimers[ship.id] = setInterval(() => {
-                            updateTravelProgress(ship.id);
-                        }, 1000);
-                    } else {
-                        completeTravel(ship.id);
-                    }
-                }
-            });
-        }
-
-        window.addEventListener('load', () => {
-            centerOnObject(400, 300);
-        });
-    </script>
+    }
+    
+    async function startBackgroundTasks() {
+        setInterval(async () => {
+            await finalizeAuction();
+            await renderAll();
+        }, 5000);
+        
+        setInterval(async () => {
+            await updateTimerDisplay();
+        }, 1000);
+    }
+    
+    async function init() {
+        await finalizeAuction();
+        bindEvents();
+        await startBackgroundTasks();
+        await renderAll();
+        
+        setInterval(async () => {
+            await renderLeaderboard();
+            await renderHistory();
+        }, 3000);
+    }
+    
+    init();
+</script>
 </body>
 </html>
