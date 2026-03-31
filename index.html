@@ -325,7 +325,7 @@
     <div class="auction-grid">
         <!-- форма ставки -->
         <div class="bid-card">
-            <h2>Сделать ставку <span>топ-3 победят</span></h2>
+            <h2>Сделать ставку <span>топ-2 победят</span></h2>
             <div class="input-group">
                 <label>👤 Никнейм</label>
                 <input type="text" id="nicknameInput" placeholder="Ваш позывной" maxlength="24">
@@ -337,11 +337,10 @@
             <div class="place-badge">
                 <div>🥇 1 место</div>
                 <div>🥈 2 место</div>
-                <div>🥉 3 место</div>
             </div>
             <button id="placeBidBtn">ПОДНЯТЬ СТАВКУ</button>
             <div class="message" id="infoMessage">
-                💡 Чтобы занять место в отряде, ваша ставка должна войти в топ-3. Если вытеснят — перебивайте.
+                💡 Чтобы занять место в отряде, ваша ставка должна войти в топ-2. Если вытеснят — перебивайте.
             </div>
         </div>
 
@@ -370,7 +369,7 @@
         </div>
     </div>
     <div class="footer-note">
-        ⏱️ Каждые 2 недели аукцион закрывается. Топ-3 получают места в отряде реаниматологов.<br>
+        ⏱️ Каждые 2 недели аукцион закрывается. Топ-2 получают места в отряде реаниматологов.<br>
         Новый аукцион стартует автоматически с чистой таблицей.
     </div>
 </div>
@@ -549,7 +548,6 @@
                 let rowClass = "";
                 if (place === 1) { medal = "🥇"; rowClass = "rank-1"; }
                 else if (place === 2) { medal = "🥈"; rowClass = "rank-2"; }
-                else if (place === 3) { medal = "🥉"; rowClass = "rank-3"; }
                 else medal = `${place}`;
                 
                 const row = tbody.insertRow();
@@ -569,7 +567,7 @@
             }
         }
         
-        document.getElementById("bidCountInfo").innerHTML = `📊 Всего участников: ${bids.length} | топ-3 войдут в отряд`;
+        document.getElementById("bidCountInfo").innerHTML = `📊 Всего участников: ${bids.length} | топ-2 войдут в отряд`;
     }
     
     async function renderHistory() {
@@ -631,7 +629,7 @@
         msgDiv.style.borderLeftColor = "#c22a2a";
         if (messageTimeout) clearTimeout(messageTimeout);
         messageTimeout = setTimeout(() => {
-            if (msgDiv) msgDiv.innerHTML = "💡 Чтобы занять место в отряде, ваша ставка должна войти в топ-3. Если вытеснят — перебивайте.";
+            if (msgDiv) msgDiv.innerHTML = "💡 Чтобы занять место в отряде, ваша ставка должна войти в топ-2. Если вытеснят — перебивайте.";
         }, 3500);
     }
     
